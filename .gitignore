@@ -1,0 +1,5 @@
+.*
+__*
+.codegpt
+!__init__.py
+!.gitignore
