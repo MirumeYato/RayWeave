@@ -98,6 +98,11 @@ This will:
 ## 🔬 Roadmap
 
 * [ ] Physics
+    * [ ] Classes implementation
+        * [x] Angle class, for using distribution of angles
+            * [ ] 1D
+            * [x] 2D
+            * [x] 3D
     * [ ] Initial conditions
         * [x] Simple source
         * [ ] Gauss like source
@@ -110,8 +115,10 @@ This will:
     * [ ] 5.2 Scattering module
     * [ ] Nuances
         * [ ] Add higher-order spherical harmonic truncation schemes.
+            * [x] Or just use [HEALpix](https://healpy.readthedocs.io/en/latest/index.html)
         * [ ] Implement efficient spatial interpolation (monotone cubic / WENO).
         * [ ] Extend to adaptive mesh refinement (AMR) and octree grids.
+            * [ ] [OctTree](https://ocnn-pytorch.readthedocs.io/en/latest/?badge=latest)
         * [ ] Torch/TensorFlow backends for GPU acceleration.
 * [ ] Results
     * [ ] Visualization (like OPENGL, also will be useful to know more about [pyvista](https://pyvista.org), [pyqtgraph](https://www.pyqtgraph.org))
