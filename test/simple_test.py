@@ -24,7 +24,7 @@ sys.path.insert(0, PATH)
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import numpy as np
 
-from lib.physics.Grids import UniformGrid2D
+from lib.physics.Grids import ParticleDict2D
 from lib.physics.Sources import TwoPointSource
 from lib.physics.Steps import StraightLineStep
 from lib.physics.Propogators import SimplePropagator
@@ -36,7 +36,7 @@ from lib.results.plot_tools import _maybe_plot
 # -----------------------------
 
 def run_demo() -> Tuple[np.ndarray, List[float]]:
-    """Run a tiny 2-particle, 3-step straight-line demo.
+    """Run a tiny 2-particle, 5-step straight-line demo.
 
     Returns
     -------
@@ -48,10 +48,10 @@ def run_demo() -> Tuple[np.ndarray, List[float]]:
     # Units: set c=1.0 for simplicity
     c = 1.0
     dt = 1.0
-    n_steps = 3
+    n_steps = 5
     t0 = 0.0
 
-    grid = UniformGrid2D()
+    grid = ParticleDict2D()
     source = TwoPointSource(
         pos1=(0.0, 0.0), dir1=(1.0, 0.0), speed1=c,
         pos2=(0.0, 1.0), dir2=(0.0, -1.0), speed2=c,
