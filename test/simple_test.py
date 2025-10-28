@@ -28,7 +28,7 @@ from lib.physics.Grids import ParticleDict2D
 from lib.physics.Sources import TwoPointSource
 from lib.physics.Steps import StraightLineStep
 from lib.physics.Propogators import SimplePropagator
-from lib.results.BackupData import TrackBackup
+from StrangRTE.lib.results.Observer import TrackBackup
 from lib.results.plot_tools import _maybe_plot
 
 # -----------------------------
