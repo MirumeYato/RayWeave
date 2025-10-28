@@ -11,7 +11,7 @@ class  Angle(ABC):
     def __init__(self, n: int = 1):
         self.n_dirs = n
     @property
-    def channels(self) -> int:
+    def num_channels(self) -> int:
         """How many channels needed to store angular histogram."""
         return self.n_dirs
     

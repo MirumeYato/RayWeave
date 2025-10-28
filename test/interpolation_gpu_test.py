@@ -46,7 +46,7 @@ if __name__ == "__main__":
     n_steps = 20
 
     Angle = Angle3D(healpix_nside = 3)
-    B = Angle.channels
+    B = Angle.num_channels
 
     # Pre-calc grid shifting
     # Some gridy tools.
