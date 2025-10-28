@@ -50,51 +50,56 @@ class Propagator:
         self._compiled_step = fn
 
     def run(self, init_state: FieldState) -> FieldState:
-        # Move tensors & set dt
-        f = init_state.field.to(self.device, non_blocking=True)
-        state = FieldState(f.contiguous(), init_state.t, self.dt, dict(init_state.meta))
+        device = torch.device(self.device)
+        assert device.type == ("cuda" if self.use_cuda_graph else device.type)
+        with torch.inference_mode():
+            # -- move & normalize --
+            f = init_state.field.to(device, non_blocking=True).contiguous()
+            state = FieldState(f, init_state.t, self.dt, dict(init_state.meta))
 
-        # Setup hooks & steps
-        for s in self.steps: s.setup(state)
-        for ob in self.observers: ob.on_setup(state)
+            # Setup hooks & steps
+            for s in self.steps: s.setup(state)
+            for ob in self.observers: ob.on_setup(state)
 
-        self._maybe_compile()
-
-        if self.use_cuda_graph and self.device.type == "cuda":
-            print("[DEBUG]: Starting cuda pipeline")
-            # Warm-up allocations and capture one iteration
-            static_state = FieldState(state.field, state.t, state.dt, state.meta)
-            g = torch.cuda.CUDAGraph()
-            torch.cuda.synchronize()
-            stream = torch.cuda.Stream()
-            torch.cuda.set_stream(stream)
-            # graph capture requires static memory addresses; avoid new tensors inside step
-            with torch.cuda.graph(g):
-                out_state = self._compiled_step(static_state)
-                # store result into preallocated buffer to keep addresses fixed
-                static_state.field.copy_(out_state.field)
-                static_state.t = out_state.t
-            torch.cuda.set_stream(torch.cuda.default_stream())
-            self._cuda_graph = g
-            self._static_state_ref = static_state
-
-            for i in range(self.n_steps):
-                g.replay()  # super-low overhead replay :contentReference[oaicite:9]{index=9}
-                for ob in self.observers:
-                    ob.on_step_end(i, self._static_state_ref)
-            state = self._static_state_ref
-        else:
-            print("[DEBUG]: Starting CPU pipeline")
+            # -- compile fused step once --
+            self._maybe_compile()                     # sets self._compiled_step
             step_fn = self._compiled_step
-            for i in range(self.n_steps):
-                state = step_fn(state)
-                for ob in self.observers:
-                    ob.on_step_end(i, state)
 
-        # Teardown
-        for ob in self.observers: ob.on_teardown()
-        for s in self.steps: s.teardown()
-        return state
+            # ---- WARMUP OUTSIDE CAPTURE ----
+            # warmup runs allow dynamo/inductor to finish compilation and allocate kernels
+            for _ in range(2):
+                tmp = step_fn(state)
+                # write back into the original buffers to keep addresses stable
+                state.field.copy_(tmp.field)
+                state.t = tmp.t
+
+            if self.use_cuda_graph and device.type == "cuda":
+                print("[DEBUG]: Run cuda propogator")
+                g = torch.cuda.CUDAGraph()
+                torch.cuda.synchronize()
+
+                # capture one iteration, writing result back into same storage
+                with torch.cuda.graph(g):
+                    out_state = step_fn(state)
+                    state.field.copy_(out_state.field)
+                    state.t = out_state.t
+
+                # main loop (fast replay)
+                for i in range(self.n_steps):
+                    g.replay()
+                    for ob in self.observers: ob.on_step_end(i, state)
+            else:
+                print("[DEBUG]: Run simple propogator")
+                for i in range(self.n_steps):
+                    out_state = step_fn(state)
+                    state.field.copy_(out_state.field)
+                    state.t = out_state.t
+                    for ob in self.observers: ob.on_step_end(i, state)
+
+            # -- teardown --
+            for ob in self.observers: ob.on_teardown()
+            for s in self.steps: s.teardown()
+            return state
     
 # -----------------------------
 # List of Propagators:
