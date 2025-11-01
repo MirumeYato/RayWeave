@@ -18,11 +18,11 @@ import torch
 from math import pi
 import healpy as hp
 
-from lib.physics.Angles import Angle3D
+from lib.grid.Angle import Angle3D
 from tqdm import trange, tqdm
 
-from lib.physics.Propogators import make_propagator
-from lib.data import FieldState
+from models.dummy import make_dev_dummy_model, model, model_seq
+from lib.State import FieldState
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -49,5 +49,13 @@ state = FieldState(
 )
 
 
-propogator = make_propagator(dt, 10, device=device)
+propogator = make_dev_dummy_model(dt, 10, device=device)
 propogator.run(state)
+
+print("test model approuach")
+
+final_state = model.run(FieldState(field=torch.ones(1,1,16), t=0.0, dt=0.01, meta={}))
+
+print("test sequential approuach")
+
+final_state = model_seq.run(FieldState(field=torch.ones(1,1,16), t=0.0, dt=0.01, meta={}))
