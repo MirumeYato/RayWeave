@@ -1,18 +1,43 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-# from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
-import numpy as np
+from typing import Dict, Any, List
 
-# from lib.physics import Grid
-from lib.data import FieldState
+from lib import Observer
+from lib.State import FieldState
 
-class Observer(ABC):
-    """Collects and stores data during a run (tracks, detector stats, etc.)."""
-    def on_setup(self, state: FieldState) -> None: pass
-    def on_step_end(self, step_idx: int, state: FieldState) -> None: pass
-    def on_teardown(self) -> None: pass
+# class EnergySumObserver(Observer):
+#     """Accumulates total energy per step (sum over the entire field)."""
+
+#     def __init__(self) -> None:
+#         self.values: List[float] = []
+
+#     def on_setup(self, state: FieldState) -> None:
+#         self.values.clear()
+
+#     def on_step_end(self, step_idx: int, state: FieldState) -> None:
+#         val = float(state.field.sum().detach().cpu())
+#         self.values.append(val)
+
+
+# class DetectorHitObserver(Observer):
+#     """Records when energy at a given voxel crosses a threshold (toy detector)."""
+
+#     def __init__(self, voxel_xyz: tuple[int, int, int], threshold: float) -> None:
+#         self.xyz = tuple(int(x) for x in voxel_xyz)
+#         self.th = float(threshold)
+#         self.hits: List[Dict[str, Any]] = []
+
+#     def on_setup(self, state: FieldState) -> None:
+#         self.hits.clear()
+
+#     def on_step_end(self, step_idx: int, state: FieldState) -> None:
+#         x, y, z = self.xyz
+#         # assumes field shape [B, C, Nx, Ny, Nz]; adapt indexing to your layout
+#         val = float(state.field[..., x, y, z].sum().detach().cpu())
+#         if val >= self.th:
+#             self.hits.append({"step": step_idx, "t": state.t, "value": val})
+
+
 
 # -----------------------------
 # List of BackupData classes:
