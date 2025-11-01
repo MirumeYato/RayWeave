@@ -1,83 +1,93 @@
-from __future__ import annotations
+# from __future__ import annotations
 
-from abc import ABC, abstractmethod
+# from abc import ABC, abstractmethod
 # from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Any
+# from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Any
 
-import numpy as np
-import healpy as hp
+# import numpy as np
+# import healpy as hp
+import torch
 
-from lib.data import ParticleState
-from lib.physics.Angles import Angle
+# from lib.data import ParticleState
+# from lib.physics.Angles import Angle
 
-class Grid(ABC):
-    """Abstract spatial container for particles and fields.
+# ====================================
 
-    Concrete implementations may be uniform grids, AMR, octrees, etc.
-    Only minimal API is required by Steps & Propagator.
-    """
+Grid = torch.Tensor
 
-    @abstractmethod
-    def add_particles(self, particles: Sequence[ParticleState]) -> None:
-        """Insert particles on grid (castom IC statement)."""       
 
-    @abstractmethod
-    def get(self) -> ParticleState:
-        """Get grid object."""
 
-    @abstractmethod
-    def update(self) -> None:
-        """Updates grid (state RTE solution at new time)"""
+
+# ====================================
+
+# class Grid(ABC):
+#     """Abstract spatial container for particles and fields.
+
+#     Concrete implementations may be uniform grids, AMR, octrees, etc.
+#     Only minimal API is required by Steps & Propagator.
+#     """
+
+#     @abstractmethod
+#     def add_particles(self, particles: Sequence[ParticleState]) -> None:
+#         """Insert particles on grid (castom IC statement)."""       
+
+#     @abstractmethod
+#     def get(self) -> ParticleState:
+#         """Get grid object."""
+
+#     @abstractmethod
+#     def update(self) -> None:
+#         """Updates grid (state RTE solution at new time)"""
 
 # -----------------------------
 # List of Grids:
 # -----------------------------
 
-class ParticleDict2D(Grid):
-    """Minimal uniform grid (not really) that simply stores particles in a dict.
+# class ParticleDict2D(Grid):
+#     """Minimal uniform grid (not really) that simply stores particles in a dict.
 
-    This is *not* spatially indexed; it's a simple container to satisfy the API.
-    Replace with AMR/Octree later without changing Step/Propagator.
-    """
+#     This is *not* spatially indexed; it's a simple container to satisfy the API.
+#     Replace with AMR/Octree later without changing Step/Propagator.
+#     """
 
-    def __init__(self) -> None:
-        self._particles: Dict[int, ParticleState] = {}
-        self._next_id: int = 0
+#     def __init__(self) -> None:
+#         self._particles: Dict[int, ParticleState] = {}
+#         self._next_id: int = 0
 
-    def add_particles(self, particles: Sequence[ParticleState]) -> List[int]:
-        """Insert particles, return their assigned ids.""" 
-        ids: List[int] = []
-        for p in particles:
-            pid = self._next_id
-            self._next_id += 1
-            p.pid = pid
-            # store a copy to decouple outside references
-            self._particles[pid] = ParticleState(pos=p.pos.copy(), direction=p.direction.copy(), speed=p.speed, weight=p.weight, pid=pid)
-            ids.append(pid)
-        return ids
+#     def add_particles(self, particles: Sequence[ParticleState]) -> List[int]:
+#         """Insert particles, return their assigned ids.""" 
+#         ids: List[int] = []
+#         for p in particles:
+#             pid = self._next_id
+#             self._next_id += 1
+#             p.pid = pid
+#             # store a copy to decouple outside references
+#             self._particles[pid] = ParticleState(pos=p.pos.copy(), direction=p.direction.copy(), speed=p.speed, weight=p.weight, pid=pid)
+#             ids.append(pid)
+#         return ids
 
-    def iter_particles(self) -> Iterable[ParticleState]:
-        """Iterate over all particles currently in the grid."""
-        return list(self._particles.values())
+#     def iter_particles(self) -> Iterable[ParticleState]:
+#         """Iterate over all particles currently in the grid."""
+#         return list(self._particles.values())
 
-    def get(self, pid: int) -> ParticleState:
-        """Get particle by id."""
-        return self._particles[pid]
+#     def get(self, pid: int) -> ParticleState:
+#         """Get particle by id."""
+#         return self._particles[pid]
 
-    def update(self, pid: int, new_state: ParticleState) -> None:
-        """Replace particle state (position, direction, etc.)."""
-        new_state.pid = pid
-        self._particles[pid] = ParticleState(
-            pos=new_state.pos.copy(),
-            direction=new_state.direction.copy(),
-            speed=new_state.speed,
-            weight=new_state.weight,
-            pid=pid,
-        )
+#     def update(self, pid: int, new_state: ParticleState) -> None:
+#         """Replace particle state (position, direction, etc.)."""
+#         new_state.pid = pid
+#         self._particles[pid] = ParticleState(
+#             pos=new_state.pos.copy(),
+#             direction=new_state.direction.copy(),
+#             speed=new_state.speed,
+#             weight=new_state.weight,
+#             pid=pid,
+#         )
 
-    def n_particles(self) -> int:
-        """Current number of particles in the grid."""
-        return len(self._particles)
+#     def n_particles(self) -> int:
+#         """Current number of particles in the grid."""
+#         return len(self._particles)
 
 
 # class MeshGrid(Grid):
