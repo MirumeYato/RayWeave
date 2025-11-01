@@ -14,6 +14,9 @@ class Source(ABC):
     # def emit(self, t0: float) -> Sequence[ParticleState]:
     #     """Return the particles to insert at time t0."""
 
+# =====================================
+# needs refactoring
+
 # -----------------------------
 # List of Sources:
 # -----------------------------
