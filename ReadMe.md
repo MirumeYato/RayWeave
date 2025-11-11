@@ -47,16 +47,32 @@ $$
 ```
 RayWeave/
 │── lib/                # Core Python modules
-│   ├── data/
-│      ├── Data.py          # Stores not well designed class for some particle statement
-│   ├── physics/
-│      ├── Grids.py         # Grid definitions (regular, planned: sparse/AMR)
-│      ├── Propagators.py   # Propagator implementation (main calculational part)
-│      ├── Sources.py       # Photon/source initialization
-│      ├── Steps.py         # One propagation step (it can be streaming, scattering, e.t.c.)
-│   ├── results/
-│      ├── BackupData.py   # Data saving and checkpointing
-│      ├── plot_tools.py   # Some functions for plotting (for now uses not optimized `matplotlib`)
+│   ├── `State.py`      # Stores not well designed class for some particle statement
+│   ├── grid/
+│      ├── `Angle.py`           # Class for healpix methods
+│      ├── `Grids.py`           # Grid definitions (regular, TODO: sparse/AMR)
+│      ├── `tools.py`           # Additional tools for work with grids
+│   ├── Observers/          # Data saving and checkpointing
+│      ├── `Observer.py`        # base class   
+│      ├── `Loggers.py`         # Loggers during propagation
+│      ├── `Plot.py`            # Plot classes. Mostly for debug
+│      ├── `Detector_recorder.py`   # TODO: Simulation of saving data of detecting photons by some detector
+│   ├── Sources/            # Photon/source initialization (not implemented)
+│      ├── `Source.py`          # TODO: base class
+│   ├── Steps/              # One propagation step (it can be streaming, scattering, e.t.c.)
+│      ├── `Step.py`            # Base class
+│      ├── `dummy.py`           
+│      ├── `Streaming.py`       # Streaming step (forward propagation without interaction) 
+│      ├── `Collision.py`       # TODO: Collision step (no moving, only interaction)
+│   ├── Strang/
+│      ├── `Engine.py`          # Base class of running pipeline (TODO: need optimization)
+│      ├── `Model.py`           # Classes for Sequential and Model usage of Engine
+│   ├── tools/
+│      ├── `plot_tools.py`   # Some functions for plotting (for now uses not optimized `matplotlib`) 
+│      ├── `profiler.py`     # Profiler of functions (decorator, for checking performance)
+
+│── models/             # Models\combinations of steps
+│   ├── `dummy.py`          # dummy examples of models initialization
 │── tests/              # Simple test cases
 │── Strang.pdf          # Theory notes and algorithm derivation
 │── README.md           # Project documentation
@@ -110,7 +126,7 @@ This will:
         * [ ] Realistic Cherenkov source
     * [ ] 5.3 Streaming module
         * [x] Test version
-		* [ ] Interpolation
+		* [x] Interpolation
 		* [ ] Fourier
     * [ ] 5.2 Scattering module
     * [ ] Nuances

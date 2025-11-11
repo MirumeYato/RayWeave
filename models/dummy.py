@@ -5,7 +5,7 @@ from typing import List
 
 from lib import Step, Model, Sequential
 from lib.Strang.Engine import StrangEngine
-from lib.Observers.temprorary_test import EnergyLogger
+from lib.Observers.Loggers import EnergyLogger
 from lib.Steps.dummy import DummyPropagate
 
 def make_dev_dummy_model(dt: float, n_steps: int, device) -> StrangEngine:

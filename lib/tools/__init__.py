@@ -1,1 +1,1 @@
-from .profile import profile_time_and_memory as performance
+from .profiler import profile_time_and_memory as performance
