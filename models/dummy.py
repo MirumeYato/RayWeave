@@ -13,7 +13,7 @@ def make_dev_dummy_model(dt: float, n_steps: int, device) -> StrangEngine:
     Simpliest propogater pipeline example. Do nothing, just pushes same FieldState further
     """
     steps: List[Step] = [
-        DummyPropagate(),
+        DummyPropagate(device),
         # here can be any steps you want
     ]
     observers = [EnergyLogger(every=1)]
@@ -32,8 +32,10 @@ class Dummy_Model(Model):
         state = self.test(state)
         return state
     
-model = Dummy_Model(DummyPropagate(), observers = [EnergyLogger()], num_time_steps=2, dt=0.01)
+device = "cpu"
 
-layers = [DummyPropagate(),DummyPropagate()]
+model = Dummy_Model(DummyPropagate(device), observers = [EnergyLogger()], num_time_steps=2, dt=0.01, use_cuda_graph = True)
+
+layers = [DummyPropagate(device),DummyPropagate(device)]
 obs = [EnergyLogger()]
-model_seq = Sequential(layers, num_time_steps=100, dt=0.01, observers=obs, device="cuda")
+model_seq = Sequential(layers, num_time_steps=100, dt=0.01, observers=obs, device="cuda", use_cuda_graph = True)
