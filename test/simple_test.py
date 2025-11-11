@@ -25,11 +25,11 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import numpy as np
 
 from lib.physics.Grids import ParticleDict2D
-from lib.physics.Sources import TwoPointSource
-from lib.physics.Steps import StraightLineStep
-from lib.physics.Propogators import SimplePropagator
-from StrangRTE.lib.results.Observer import TrackBackup
-from lib.results.plot_tools import _maybe_plot
+from lib.Sources.Sources import TwoPointSource
+from lib.physics.Step import StraightLineStep
+from lib.physics.BasePropogator import SimplePropagator
+from lib.results.Observer import TrackBackup
+from lib.plot_tools import _maybe_plot
 
 # -----------------------------
 # Demo / Example Usage

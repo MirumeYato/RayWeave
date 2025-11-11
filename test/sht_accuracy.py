@@ -37,6 +37,7 @@ def _precompute_Ylm_healpix(nside: int, L_max: int, device=None, dtype=torch.com
     Can be changed for more fuster solution later
     """
     Q = hp.nside2npix(nside)
+    print(Q)
     theta, phi = hp.pix2ang(nside, np.arange(Q))  # theta ∈ [0,π], phi ∈ [0,2π)
 
     # --- vectorized (l,m) construction ---

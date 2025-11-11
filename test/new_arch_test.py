@@ -54,8 +54,8 @@ propogator.run(state)
 
 print("test model approuach")
 
-final_state = model.run(FieldState(field=torch.ones(1,1,16), t=0.0, dt=0.01, meta={}))
+final_state = model.run(FieldState(field=field_tensor, t=0.0, dt=0.01, meta={}))
 
 print("test sequential approuach")
 
-final_state = model_seq.run(FieldState(field=torch.ones(1,1,16), t=0.0, dt=0.01, meta={}))
+final_state = model_seq.run(FieldState(field=field_tensor, t=0.0, dt=0.01, meta={}))

@@ -20,9 +20,11 @@ import torch.nn.functional as F
 from math import pi
 import healpy as hp
 
-from lib.physics.Angles import Angle3D
-from lib.tools import ptm
-from lib.physics.grid_tools import prepare_grid
+from lib.grid.Angle import Angle3D
+from lib.tools import performance
+from lib.grid.tools import prepare_grid
+
+from tqdm import trange
 
 OUTPUT = os.path.abspath(os.path.join(PATH, 'output'))
 
@@ -35,6 +37,15 @@ def make_delta_field(N: int, device):
     # f[0, 0, c, c, c+10] = 1.0 # point-like source in the middle
     return f
 
+@performance
+def cycle(n, f_batch, grids):
+    for i in range(n):
+        f_dirs = f_batch
+        f_batch = F.grid_sample( # actually this is  streaming step functionality
+                f_dirs, grids, mode="bilinear", padding_mode="zeros", align_corners=True
+            )  # [B,1,N,N,N]
+    return f_batch
+
 # ---- parameters ----
 if __name__ == "__main__":
 
@@ -43,7 +54,7 @@ if __name__ == "__main__":
     N = 100
     speed = 1.0
     dt = 1.0
-    n_steps = 20
+    n_steps = 100
 
     Angle = Angle3D(healpix_nside = 3)
     B = Angle.num_channels
@@ -58,8 +69,13 @@ if __name__ == "__main__":
     # Intencity (main grid)
     # should be replaces with Source class INI
     # this example correspond to isotropic angle streaming.
-    f0 = make_delta_field(N, device) # Intencity(1, 1, N, N, N) like defining sources in space
-    f_batch = f0.expand(B, -1, -1, -1, -1) # Intencity (B, 1, N, N, N) just give to any sorce isotroopic angle distibution
+    # f0 = make_delta_field(N, device) # Intencity(1, 1, N, N, N) like defining sources in space
+    # f_batch = f0.expand(B, -1, -1, -1, -1) # Intencity (B, 1, N, N, N) just give to any sorce isotroopic angle distibution
+
+    f_batch = torch.zeros((B, 1, N, N, N), dtype=torch.float32, device=device)
+    c = N // 2
+    c2 = B // 2 + 5
+    f_batch[c2, 0, c, c, c] = 1.0 # point-like source in the middl
 
     # Pre-cycle sub-functions
     # Needed refactoring into plotting tools
@@ -129,81 +145,83 @@ if __name__ == "__main__":
     print("Start prop")
     azim0 = 45  # starting azimuth
 
-    for step in range(0, n_steps + 1):
-        f_dirs = f_batch                            # [B,1,N,N,N]
-        f_step = (f_dirs.squeeze(1)).sum(dim=0)     # [N,N,N] torch tensor
-        vol = f_step.detach().cpu().numpy()         # numpy [N,N,N]
+    cycle(n_steps, f_batch, grids)
 
-        # Select voxels to plot (threshold + optional subsample)
-        vmax = w0/200#float(vol.max())
-        if vmax <= 0:
-            coords = np.zeros((0, 3), dtype=int)
-            vals = np.zeros((0,), dtype=float)
-        else:
-            thr = vmax * THR_FRAC
-            coords = np.column_stack(np.nonzero(vol >= thr))  # (K,3) with (z,y,x) by default
-            vals = vol[coords[:, 0], coords[:, 1], coords[:, 2]]
+    # for step in trange(n_steps):
+    #     f_dirs = f_batch                            # [B,1,N,N,N]
+    #     # f_step = (f_dirs.squeeze(1)).sum(dim=0)     # [N,N,N] torch tensor
+    #     # vol = f_step.detach().cpu().numpy()         # numpy [N,N,N]
 
-            # Subsample if too many points
-            if coords.shape[0] > MAX_POINTS:
-                idx = np.random.choice(coords.shape[0], size=MAX_POINTS, replace=False)
-                coords = coords[idx]
-                vals = vals[idx]
+    #     # # Select voxels to plot (threshold + optional subsample)
+    #     # vmax = w0/200#float(vol.max())
+    #     # if vmax <= 0:
+    #     #     coords = np.zeros((0, 3), dtype=int)
+    #     #     vals = np.zeros((0,), dtype=float)
+    #     # else:
+    #     #     thr = vmax * THR_FRAC
+    #     #     coords = np.column_stack(np.nonzero(vol >= thr))  # (K,3) with (z,y,x) by default
+    #     #     vals = vol[coords[:, 0], coords[:, 1], coords[:, 2]]
 
-        # Color by value/w0; alpha by value within this frame
-        if vals.size > 0:
-            color_norm = np.clip(vals / w0, 0.0, 1.0)
-            rgba = cm.viridis(color_norm)
-            # emphasize stronger voxels with higher opacity (still readable in dense scenes)
-            vrel = vals / (vals.max() if vals.max() > 0 else 1.0)
-            rgba[:, 3] = np.clip(0.15 + 0.85 * (vrel ** 0.7), 0.15, 1.0)
-        else:
-            rgba = np.zeros((0, 4))
+    #     #     # Subsample if too many points
+    #     #     if coords.shape[0] > MAX_POINTS:
+    #     #         idx = np.random.choice(coords.shape[0], size=MAX_POINTS, replace=False)
+    #     #         coords = coords[idx]
+    #     #         vals = vals[idx]
 
-        # Plot
-        ax.clear()
-        if coords.size > 0:
-            # coords from np.nonzero are (z, y, x); map to (x, y, z) for plotting
-            xs, ys, zs = coords[:, 2], coords[:, 1], coords[:, 0]
-            ax.scatter(xs, ys, zs, c=rgba, s=POINT_SIZE, depthshade=False)
+    #     # # Color by value/w0; alpha by value within this frame
+    #     # if vals.size > 0:
+    #     #     color_norm = np.clip(vals / w0, 0.0, 1.0)
+    #     #     rgba = cm.viridis(color_norm)
+    #     #     # emphasize stronger voxels with higher opacity (still readable in dense scenes)
+    #     #     vrel = vals / (vals.max() if vals.max() > 0 else 1.0)
+    #     #     rgba[:, 3] = np.clip(0.15 + 0.85 * (vrel ** 0.7), 0.15, 1.0)
+    #     # else:
+    #     #     rgba = np.zeros((0, 4))
 
-        # Nice cube framing
-        N = vol.shape[0]
-        ax.set_xlim(0, N - 1)
-        ax.set_ylim(0, N - 1)
-        ax.set_zlim(0, N - 1)
-        ax.set_box_aspect((1, 1, 1))
-        ax.view_init(elev=ELEV, azim=azim0 + step * ROTATE_PER_STEP)
-        ax.set_xticks([]); ax.set_yticks([]); ax.set_zticks([])
-        ax.set_xlabel("x"); ax.set_ylabel("y"); ax.set_zlabel("z")
+    #     # # Plot
+    #     # ax.clear()
+    #     # if coords.size > 0:
+    #     #     # coords from np.nonzero are (z, y, x); map to (x, y, z) for plotting
+    #     #     xs, ys, zs = coords[:, 2], coords[:, 1], coords[:, 0]
+    #     #     ax.scatter(xs, ys, zs, c=rgba, s=POINT_SIZE, depthshade=False)
 
-        # Text: total weight vs w0 (now use full 3D sum)
-        sum_ratio = float(vol.sum()) / (float(w0))
-        ax.text2D(
-            0.02, 0.98,
-            rf"$\sum_i \omega_i(t) / \sum_i \omega_i(0) = {sum_ratio:.2e}$",
-            transform=ax.transAxes,
-            color="black",
-            fontsize=11,
-            ha="left", va="top",
-            bbox=dict(facecolor="white", edgecolor="none", alpha=0.7, pad=3),
-        )
-        ax.set_title(f"Photon flux 3D — step {step} (t={step*dt:.1f})")
+    #     # # Nice cube framing
+    #     # N = vol.shape[0]
+    #     # ax.set_xlim(0, N - 1)
+    #     # ax.set_ylim(0, N - 1)
+    #     # ax.set_zlim(0, N - 1)
+    #     # ax.set_box_aspect((1, 1, 1))
+    #     # ax.view_init(elev=ELEV, azim=azim0 + step * ROTATE_PER_STEP)
+    #     # ax.set_xticks([]); ax.set_yticks([]); ax.set_zticks([])
+    #     # ax.set_xlabel("x"); ax.set_ylabel("y"); ax.set_zlabel("z")
 
-        # Save frame
-        frame_path = os.path.join(OUTPUT, f"flux_step_{step:02d}.png")
-        fig.savefig(frame_path, dpi=120)
-        frames.append(imageio.imread(frame_path))
+    #     # # Text: total weight vs w0 (now use full 3D sum)
+    #     # sum_ratio = float(vol.sum()) / (float(w0))
+    #     # ax.text2D(
+    #     #     0.02, 0.98,
+    #     #     rf"$\sum_i \omega_i(t) / \sum_i \omega_i(0) = {sum_ratio:.2e}$",
+    #     #     transform=ax.transAxes,
+    #     #     color="black",
+    #     #     fontsize=11,
+    #     #     ha="left", va="top",
+    #     #     bbox=dict(facecolor="white", edgecolor="none", alpha=0.7, pad=3),
+    #     # )
+    #     # ax.set_title(f"Photon flux 3D — step {step} (t={step*dt:.1f})")
 
-        # Advance simulation
-        f_batch = F.grid_sample( # actually this is  streaming step functionality
-            f_dirs, grids, mode="bilinear", padding_mode="zeros", align_corners=True
-        )  # [B,1,N,N,N]
+    #     # # Save frame
+    #     # frame_path = os.path.join(OUTPUT, f"flux_step_{step:02d}.png")
+    #     # fig.savefig(frame_path, dpi=120)
+    #     # frames.append(imageio.imread(frame_path))
 
-    plt.close(fig)
+    #     # Advance simulation
+    #     f_batch = F.grid_sample( # actually this is  streaming step functionality
+    #         f_dirs, grids, mode="bilinear", padding_mode="zeros", align_corners=True
+    #     )  # [B,1,N,N,N]
 
-    gif_path = os.path.join(OUTPUT, "photon_flux_propagation_3d.gif")
-    imageio.mimsave(gif_path, frames, duration=0.6)
+    # # plt.close(fig)
 
-    print("Finish")
-    print(gif_path)
+    # # gif_path = os.path.join(OUTPUT, "photon_flux_propagation_3d.gif")
+    # # imageio.mimsave(gif_path, frames, duration=0.6)
+
+    # print("Finish")
+    # # print(gif_path)
