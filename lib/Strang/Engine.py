@@ -15,6 +15,8 @@ from tqdm import trange
 from lib import Step, Observer
 from lib.State import FieldState
 
+from lib.tools import performance
+
 class Engine(ABC):
     """Base running pipeline class for solving your equation.
 
@@ -104,6 +106,48 @@ class StrangEngine(Engine):
         return fn
 
     # ---- main run --------------------------------------------------------------
+    @performance
+    def __inner_run_graph(self, state: FieldState, step_fn: Callable[[FieldState], FieldState]) -> FieldState:
+        print("[DEBUG]: Run with CUDA Graph")
+        g = torch.cuda.CUDAGraph()
+        torch.cuda.synchronize()
+
+        # capture one iteration, writing result back into same storage
+        with torch.cuda.graph(g):
+            out_state: FieldState = step_fn(state)
+            state.field.copy_(out_state.field)
+            state.t = out_state.t
+
+        # main loop (fast replay)
+        for i in range(self.num_time_steps):
+            # Optional variable dt
+            if self.dt_provider is not None:
+                state.dt = float(self.dt_provider(i, state))
+            g.replay()
+            for ob in self.observers: ob.on_step_end(i, state)
+
+    @performance
+    def __inner_run_simple(self, state: FieldState, step_fn: Callable[[FieldState], FieldState]) -> FieldState:
+        print("[DEBUG]: Run (eager/compiled, no CUDA Graph)")
+        for i in range(self.num_time_steps):
+            # if self.dt_provider is not None:
+            #     state.dt = float(self.dt_provider(i, state))
+            out_state = step_fn(state)
+            # state.field.copy_(out_state.field) # Safer, but too slow for calculation processes
+            state.field = out_state.field        # Faster, but may be broken by changing operations
+            state.t = out_state.t
+            for ob in self.observers: ob.on_step_end(i, state)
+
+    def __inner_run_direct(self, state: FieldState) -> FieldState:
+        print("[DEBUG]: Run (eager/compiled, no CUDA Graph)")
+        print("[ERROR]: For this time does not work. Need fix")
+        # for i in range(self.num_time_steps):
+        #     if self.dt_provider is not None:
+        #         state.dt = float(self.dt_provider(i, state))
+        #     for s in self.steps: 
+        #         state = s.forward(state)
+        #     for ob in self.observers: ob.on_step_end(i, state)
+
     def run(self, init_state: FieldState) -> FieldState:
         device = self.device
         use_graph = self.use_cuda_graph and device.type == "cuda"
@@ -120,40 +164,19 @@ class StrangEngine(Engine):
             # -- compile fused step once --
             step_fn = self._maybe_compile()     # sets self._compiled_step
 
-            # ---- WARMUP OUTSIDE CAPTURE ----
-            # warmup runs allow dynamo/inductor to finish compilation and allocate kernels
-            for _ in range(2):
-                tmp: FieldState = step_fn(state)
-                # write back into the original buffers to keep addresses stable
-                state.field.copy_(tmp.field)
-                state.t = tmp.t
+            # # ---- WARMUP OUTSIDE CAPTURE ----
+            # # warmup runs allow dynamo/inductor to finish compilation and allocate kernels
+            # for _ in range(2):
+            #     tmp: FieldState = step_fn(state)
+            #     # write back into the original buffers to keep addresses stable
+            #     state.field.copy_(tmp.field)
+            #     state.t = tmp.t
 
             # -- Time-stepping loop --
             if use_graph:
-                print("[DEBUG]: Run with CUDA Graph")
-                g = torch.cuda.CUDAGraph()
-                torch.cuda.synchronize()
-                # capture one iteration, writing result back into same storage
-                with torch.cuda.graph(g):
-                    out_state: FieldState = step_fn(state)
-                    state.field.copy_(out_state.field)
-                    state.t = out_state.t
-                # main loop (fast replay)
-                for i in range(self.num_time_steps):
-                    # Optional variable dt
-                    if self.dt_provider is not None:
-                        state.dt = float(self.dt_provider(i, state))
-                    g.replay()
-                    for ob in self.observers: ob.on_step_end(i, state)
+                self.__inner_run_graph(state, step_fn)
             else:
-                print("[DEBUG]: Run (eager/compiled, no CUDA Graph)")
-                for i in range(self.num_time_steps):
-                    if self.dt_provider is not None:
-                        state.dt = float(self.dt_provider(i, state))
-                    out_state = step_fn(state)
-                    state.field.copy_(out_state.field)
-                    state.t = out_state.t
-                    for ob in self.observers: ob.on_step_end(i, state)
+                self.__inner_run_simple(state, step_fn)
 
             # -- Teardown --
             for ob in self.observers: ob.on_teardown()

@@ -37,6 +37,19 @@ class FieldState:
     def to(self, device: torch.device | str) -> "FieldState":
         dev = torch.device(device)
         return replace(self, field=self.field.to(dev))
+    
+    # @classmethod
+    # def from_floats(cls, field: torch.Tensor, t: float, dt: float, meta: dict = None, device=None):
+    #     """
+    #     >>> state = FieldState.from_floats(field, t=0.0, dt=0.01, meta={"id": 1})
+    #     """
+    #     device = device or field.device
+    #     return cls(
+    #         field=field,
+    #         t=torch.tensor(t, device=device, dtype=torch.float32),
+    #         dt=torch.tensor(dt, device=device, dtype=torch.float32),
+    #         meta=meta or {}
+    #     )
 
 # @dataclass
 # class FieldState:
