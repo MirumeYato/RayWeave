@@ -111,7 +111,7 @@ def test_HenyeyGreenshtein(nSIDE = 25, L_max = 25*3-3, g = 0.5, custom = True):
                 if m == 0: alm_true_np[i] = np.real(alm_true[l])
                 else : alm_true_np[i] = 0
                 i+=1
-        alm_ture_torch = torch.from_numpy(alm_true_np).to(device=device, dtype=torch.complex64)
+        alm_true_torch = torch.from_numpy(alm_true_np).to(device=device, dtype=torch.complex64)
 
         # get alm via custom SHs from true
         alm_custom_torch = torch.einsum('q,qp->p', map_true_torch, mY_H)
@@ -128,7 +128,7 @@ def test_HenyeyGreenshtein(nSIDE = 25, L_max = 25*3-3, g = 0.5, custom = True):
                 i+=1
         
         # get map via custom SHs from true
-        map_custom = torch.einsum('p,qp->q', alm_ture_torch, mY).detach().cpu().numpy()
+        map_custom = torch.einsum('p,qp->q', alm_true_torch, mY).detach().cpu().numpy()
         
         # Make double procedure from true map -> get alm_custom -> and back again to map_custom
         map_custom_rec_torch = torch.einsum('p,qp->q', alm_custom_torch, mY)

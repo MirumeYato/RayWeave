@@ -256,7 +256,7 @@ if __name__ == "__main__":
     n_steps = 5
     L_max = 2*3-2
     g = 0.6
-    g_l = np.array([g**i / np.sqrt(4*np.pi/(2*i+1)) for i in range(L_max+1)])
+    g_l = np.array([g**i / np.sqrt(4 * np.pi / (2 * i + 1)) for i in range(L_max + 1)])
     lambda_l_np = speed * (-1.0 + g_l)                        # shape [L_max+1]
     f_l_np = np.exp(lambda_l_np * (dt / 2.0))                          # shape [L_max+1]
     f_l = torch.from_numpy(f_l_np).to(device=device, dtype=torch.float32)
