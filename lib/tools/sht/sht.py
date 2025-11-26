@@ -62,6 +62,6 @@ def map2map_xn(
         # just summation for lm. No need quadrature
         map_torch = torch.einsum('p,qp->q', alm_torch, Y)
     
-    print(f"Final i = {i}")
+    # print(f"Final i = {i}")
 
     return map_torch.detach().cpu().numpy()

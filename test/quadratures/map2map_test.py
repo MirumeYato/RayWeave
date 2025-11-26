@@ -44,7 +44,6 @@ if __name__ == "__main__":
 
     map_true_hp = map_HenyeyGreenshtein(g, theta_hp)
     map_true_td = map_HenyeyGreenshtein(g, theta_td)
-    alm_true  = alm_HenyeyGreenshtein(g, Lmax)
     
     map_orig_hp = hp_loop(map_true_hp, N, Lmax, nside)
     map_hp = map2map_xn(map_true_hp, n=N, device=device, Y_H=shH_hp, Y=sh_hp, weights=w_hp)
