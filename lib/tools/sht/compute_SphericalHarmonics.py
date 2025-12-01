@@ -4,7 +4,7 @@ import torch
 from scipy.special import sph_harm_y
 # from scipy.special import sph_harm
 
-def compute_SH(
+def compute_SH_scipy(
     theta: np.ndarray | torch.Tensor,
     phi: np.ndarray | torch.Tensor,
     L_max: int,
@@ -50,7 +50,7 @@ def compute_SH_torch(
     theta: torch.Tensor,
     phi: torch.Tensor,
     L_max: int,
-    device='cuda',
+    device=None,
     dtype=torch.complex128
 ):
     """
@@ -65,13 +65,12 @@ def compute_SH_torch(
     Returns:
         Y: Tensor of shape (N, (L_max+1)^2)
     """
-    theta_t = torch.from_numpy(phi).to(device=device, dtype=torch.float64)
-    phi_t = torch.from_numpy(theta).to(device=device, dtype=torch.float64)
     # Ensure inputs are on the correct device/dtype
-    theta = theta_t.to(device=device, dtype=torch.float64) # Angles must be real for calc
-    phi = phi_t.to(device=device, dtype=torch.float64)
+    # Invert angles because of mistake in this function definition
+    theta_t = phi.to(device=device, dtype=torch.float64) # Angles must be real for calc
+    phi_t = theta.to(device=device, dtype=torch.float64)
     
-    N = theta.shape[0]
+    N = theta_t.shape[0]
     n_harmonics = (L_max + 1) ** 2
     
     # Pre-allocate output tensor (complex)
@@ -79,8 +78,8 @@ def compute_SH_torch(
     
     # Cartesian components for Legendre recursion (x = cos(phi) corresponds to polar axis)
     # Note: Scipy's phi is the polar angle (0 to pi), so x = cos(phi)
-    x = torch.cos(phi)
-    s = torch.sin(phi) # sin(phi)
+    x = torch.cos(phi_t)
+    s = torch.sin(phi_t) # sin(phi)
     
     # We will compute P_lm (Associated Legendre Polynomials)
     # We only need to compute for m >= 0, then derive m < 0 using symmetry.
@@ -122,7 +121,7 @@ def compute_SH_torch(
         idx_pos = _get_idx(m, m, L_max)
         
         # Y_mm = N_mm * P_mm * exp(i*m*theta)
-        phase = torch.exp(1j * m * theta)
+        phase = torch.exp(1j * m * theta_t)
         Y[:, idx_pos] = N_lm[idx_pos] * P_mm * phase
         
         # Handle m < 0 via symmetry: Y_{l, -m} = (-1)^m * conj(Y_{l, m})
@@ -196,6 +195,7 @@ def _precompute_normalization(L_max):
             
     return N_lm
 
+# TODO: Needs fixes:
 # from e3nn import o3
 
 # def compute_SH_e3nn(theta, phi, L_max, device='cuda', dtype=torch.float64):

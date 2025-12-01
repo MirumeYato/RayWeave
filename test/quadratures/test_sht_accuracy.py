@@ -19,9 +19,11 @@ from matplotlib.colors import LogNorm
 
 # --- 2. Imports from your library ---
 try:
-    from lib.tools.sht import map_HenyeyGreenshtein, map2map_xn
-    from lib.tools.sht.Chebishev.nodes_HEALpix import get_spherical_harmonics as sht_hp
-    from lib.tools.sht.Chebishev.nodes_tdesign import get_spherical_harmonics as sht_td
+    from lib.tools import map_HenyeyGreenstein
+    from sht import map2map_xn
+
+    from lib.grid.Quadrature.Chebishev.QuadratureHEALPix import QuadratureHEALPix
+    from lib.grid.Quadrature.Chebishev.QuadratureTdesign import QuadratureTdesign
 except ImportError:
     pytest.fail("Could not import 'lib.tools'. Check your python path or directory structure.")
 
@@ -52,20 +54,6 @@ def run_orig_hp_method(map_true, n, lmax, nside):
         map_curr = hp.alm2map(alm, nside=nside, lmax=lmax, mmax=0, pol=False)
     return map_curr
 
-def run_custom_hp_method(map_true, n, lmax, nside, device):
-    """Custom HP method using Chebyshev nodes."""
-    sh_hp, shH_hp, w_hp, theta_hp = sht_hp(nside, lmax, device)
-    # Re-generate map on these nodes to ensure alignment
-    map_input = map_HenyeyGreenshtein(0.0, theta_hp) # Placeholder g, overwritten in main loop usually
-    # Note: The 'map_true' passed in is used, but we need the specific Y/weights
-    return map2map_xn(map_true, n=n, device=device, Y_H=shH_hp, Y=sh_hp, weights=w_hp)
-
-def run_tdesign_method(map_true, n, lmax, device):
-    """T-Design method."""
-    sh_td, shH_td, w_td, theta_td = sht_td(lmax, device)
-    return map2map_xn(map_true, n=n, device=device, Y_H=shH_td, Y=sh_td, weights=w_td)
-
-
 # --- 5. The Pytest Suite ---
 
 def test_sht_accuracy_landscape():
@@ -80,6 +68,7 @@ def test_sht_accuracy_landscape():
     l_values = np.arange(2, 21, 1)
     # g: 0 to 0.95 (We assume symmetry and test positive g for simplicity in this heatmap)
     g_values = np.arange(0, 0.96, 0.05)
+    # g_values = np.arange(0, -0.96, -0.05)
     
     methods = ["Original_HP", "Custom_HP", "T_Design"]
     
@@ -94,8 +83,19 @@ def test_sht_accuracy_landscape():
         
         # Pre-compute SH bases for this Lmax to save time (if applicable)
         # Note: In strict unit testing we might re-init per call, but for speed we do it here
-        sh_hp, shH_hp, w_hp, theta_hp = sht_hp(NSIDE, int(lmax), DEVICE)
-        sh_td, shH_td, w_td, theta_td = sht_td(int(lmax), DEVICE)
+
+        # Quadrature Methods
+        qTdesign = QuadratureTdesign(240, device=DEVICE)
+        qHEALPix = QuadratureHEALPix(NSIDE, device=DEVICE)
+        # Spherical Harmonics (grids are different!)
+        sh_hp, shH_hp = qHEALPix.get_spherical_harmonics(int(lmax)) 
+        sh_td, shH_td = qTdesign.get_spherical_harmonics(int(lmax))
+        # Weights (grids are different!) 
+        w_hp = qHEALPix.get_weights()
+        w_td = qTdesign.get_weights()
+        # Thetas (grids are different!)
+        theta_hp, __ = qHEALPix.get_nodes_angles()
+        theta_td, __ = qTdesign.get_nodes_angles()
 
         for method_name in methods:
             # For each method, iterate g starting from 0 (easiest) to 1 (hardest)
@@ -103,27 +103,27 @@ def test_sht_accuracy_landscape():
                 
                 # 1. Generate Ground Truth
                 if "T_Design" in method_name:
-                    map_true = map_HenyeyGreenshtein(g, theta_td)
+                    map_true = map_HenyeyGreenstein(g, theta_td)
                 else:
-                    map_true = map_HenyeyGreenshtein(g, theta_hp)
+                    map_true = map_HenyeyGreenstein(g, theta_hp)
                 
                 # 2. Run Round-Trip
                 try:
                     if method_name == "Original_HP":
                         # Healpy requires numpy arrays, not torch
-                        if isinstance(map_true, torch.Tensor): map_true = map_true.cpu().numpy()
+                        if isinstance(map_true, torch.Tensor): map_true = map_true.detach().cpu().numpy()
                         map_final = run_orig_hp_method(map_true, N_ITER, int(lmax), NSIDE)
                         
                     elif method_name == "Custom_HP":
-                        map_final = map2map_xn(map_true, n=N_ITER, device=DEVICE, Y_H=shH_hp, Y=sh_hp, weights=w_hp)
+                        map_final = map2map_xn(map_true.to(torch.complex128), n=N_ITER, Y_H=shH_hp, Y=sh_hp, weights=w_hp)
                         
                     elif method_name == "T_Design":
-                        map_final = map2map_xn(map_true, n=N_ITER, device=DEVICE, Y_H=shH_td, Y=sh_td, weights=w_td)
+                        map_final = map2map_xn(map_true.to(torch.complex128), n=N_ITER, Y_H=shH_td, Y=sh_td, weights=w_td)
                     
                     # 3. Calculate Error
                     # Ensure both are numpy for calc
-                    if isinstance(map_final, torch.Tensor): map_final = map_final.cpu().numpy()
-                    if isinstance(map_true, torch.Tensor): map_true = map_true.cpu().numpy()
+                    if isinstance(map_final, torch.Tensor): map_final = map_final.detach().cpu().numpy()
+                    if isinstance(map_true, torch.Tensor): map_true = map_true.detach().cpu().numpy()
                     
                     error = compute_relative_error(map_final, map_true)
                     heatmaps[method_name][g_idx, l_idx] = error

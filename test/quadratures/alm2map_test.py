@@ -9,9 +9,11 @@ print(PATH)
 sys.path.insert(0, PATH)
 #===============================#
 # Retry with fixed-size frames (avoid bbox_inches='tight' which changed image sizes).
-from lib.tools.sht import compute_SH, map_HenyeyGreenshtein, alm_HenyeyGreenshtein, alm2map
-from lib.tools.sht.Chebishev.nodes_HEALpix import get_spherical_harmonics as sht_hp
-from lib.tools.sht.Chebishev.nodes_tdesign import get_spherical_harmonics as sht_td
+from lib.tools import map_HenyeyGreenstein, alm_HenyeyGreenstein
+from lib.tools.func_HenyeyGreenshtein import alm_transform_torch as alm_transform
+from sht import alm2map
+from lib.grid.Quadrature.Chebishev.QuadratureHEALPix import QuadratureHEALPix
+from lib.grid.Quadrature.Chebishev.QuadratureTdesign import QuadratureTdesign
 
 import matplotlib.pyplot as plt
 
@@ -23,38 +25,39 @@ import healpy as hp
 OUTPUT = os.path.abspath(os.path.join(PATH, 'output', 'test', 'sht_debug'))
 os.makedirs(OUTPUT, exist_ok=True)
 
-def alm_transform(alm_no_m, L_max, lenth)-> np.ndarray:
-    alm = np.zeros(lenth)
-    i=0
-    for l in range(L_max + 1):
-        for m in range(-l, l + 1):
-            # print(l,m)
-            if m == 0: alm[i] = np.real(alm_no_m[l])
-            else : alm[i] = 0
-            i+=1
-    return alm
-
 if __name__ == "__main__":
 
-    nside, Lmax = 5, 21
-    g = 0.5
+    nside, Lmax = 5, 100
+    g = 0.9
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    sh_hp, shH_hp, w_hp, theta_hp = sht_hp(nside, Lmax, device)
-    sh_td, shH_td, w_td, theta_td = sht_td(Lmax, device)
+    # Quadrature Methods
+    qTdesign = QuadratureTdesign(240, device=device)
+    qHEALPix = QuadratureHEALPix(nside, device=device)
+    # Spherical Harmonics (grids are different!)
+    sh_hp, shH_hp = qHEALPix.get_spherical_harmonics(Lmax) 
+    sh_td, shH_td = qTdesign.get_spherical_harmonics(Lmax)
+    # Weights (grids are different!) 
+    w_hp = qHEALPix.get_weights()
+    w_td = qTdesign.get_weights()
+    # Thetas (grids are different!)
+    theta_hp, __ = qHEALPix.get_nodes_angles()
+    theta_td, __ = qTdesign.get_nodes_angles()
+    # Meaning of HenyeyGreenshtein function in nodes points
+    map_true_hp = map_HenyeyGreenstein(g, theta_hp).detach().cpu().numpy()
+    map_true_td = map_HenyeyGreenstein(g, theta_td).detach().cpu().numpy()
+    # Meaning of HenyeyGreenshtein shperical coefitients
+    alm_true  = alm_HenyeyGreenstein(g, Lmax, device=device)
 
-    map_true_hp = map_HenyeyGreenshtein(g, theta_hp)
-    map_true_td = map_HenyeyGreenshtein(g, theta_td)
-    alm_true  = alm_HenyeyGreenshtein(g, Lmax)
+    alm_true_hp = alm_transform(alm_true, L_max=Lmax, length=sh_hp.shape[1])
+    alm_true_td = alm_transform(alm_true, L_max=Lmax, length=sh_td.shape[1])    
 
-    alm_true_hp = alm_transform(alm_true, L_max=Lmax, lenth=sh_hp.shape[1])
-    alm_true_td = alm_transform(alm_true, L_max=Lmax, lenth=sh_td.shape[1])
-    
-
-    map_orig_hp = hp.alm2map(alm_true.astype(np.complex128), nside=nside, lmax=Lmax, mmax=0, pol = False)
-    map_hp = alm2map(alm_true_hp, device = device, Y=sh_hp)
-    map_td = alm2map(alm_true_td, device = device, Y=sh_td)
+    # Heal pix standart method
+    map_orig_hp = hp.alm2map(alm_true.detach().cpu().numpy().astype(np.complex128), nside=nside, lmax=Lmax, mmax=0, pol = False)
+    # Our custom
+    map_hp = alm2map(alm_true_hp, Y=sh_hp, dtype=torch.complex128).detach().cpu().numpy()
+    map_td = alm2map(alm_true_td, Y=sh_td, dtype=torch.complex128).detach().cpu().numpy()
 
     # Accuracy Plot
     plt.figure(figsize=(8, 5))

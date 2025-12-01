@@ -9,9 +9,11 @@ print(PATH)
 sys.path.insert(0, PATH)
 #===============================#
 # Retry with fixed-size frames (avoid bbox_inches='tight' which changed image sizes).
-from lib.tools.sht import compute_SH, map_HenyeyGreenshtein, alm_HenyeyGreenshtein, map2alm
-from lib.tools.sht.Chebishev.nodes_HEALpix import get_spherical_harmonics as sht_hp
-from lib.tools.sht.Chebishev.nodes_tdesign import get_spherical_harmonics as sht_td
+from lib.tools import map_HenyeyGreenstein, alm_HenyeyGreenstein
+from lib.tools.func_HenyeyGreenshtein import alm_diagonalize as alm_diag
+from sht import map2alm
+from lib.grid.Quadrature.Chebishev.QuadratureHEALPix import QuadratureHEALPix
+from lib.grid.Quadrature.Chebishev.QuadratureTdesign import QuadratureTdesign
 
 import matplotlib.pyplot as plt
 
@@ -26,21 +28,38 @@ os.makedirs(OUTPUT, exist_ok=True)
 
 if __name__ == "__main__":
 
-    nside, Lmax = 5, 21
-    g = 0.5
+    nside, Lmax = 5, 20
+    g = 0.9
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    sh_hp, shH_hp, w_hp, theta_hp = sht_hp(nside, Lmax, device)
-    sh_td, shH_td, w_td, theta_td = sht_td(Lmax, device)
+    # Quadrature Methods
+    qTdesign = QuadratureTdesign(240, device=device)
+    qHEALPix = QuadratureHEALPix(nside, device=device)
+    # Spherical Harmonics (grids are different!)
+    sh_hp, shH_hp = qHEALPix.get_spherical_harmonics(Lmax) 
+    sh_td, shH_td = qTdesign.get_spherical_harmonics(Lmax)
+    # Weights (grids are different!) 
+    w_hp = qHEALPix.get_weights()
+    w_td = qTdesign.get_weights()
+    # Thetas (grids are different!)
+    theta_hp, __ = qHEALPix.get_nodes_angles()
+    theta_td, __ = qTdesign.get_nodes_angles()
+    # Meaning of HenyeyGreenshtein function in nodes points
+    map_true_hp = map_HenyeyGreenstein(g, theta_hp)
+    map_true_td = map_HenyeyGreenstein(g, theta_td)
+    # Meaning of HenyeyGreenshtein shperical coefitients
+    alm_true  = alm_HenyeyGreenstein(g, Lmax, device=device).detach().cpu().numpy()
 
-    map_true_hp = map_HenyeyGreenshtein(g, theta_hp)
-    map_true_td = map_HenyeyGreenshtein(g, theta_td)
-    alm_true  = alm_HenyeyGreenshtein(g, Lmax)
+    # Heal pix standart method
+    alm_orig_hp = hp.map2alm(map_true_hp.detach().cpu().numpy(), lmax=Lmax, mmax=0, iter = 0, pol = False)
+    # Our custom
+    alm_hp = map2alm(map_true_hp, Y_H=shH_hp, weights=w_hp)
+    alm_td = map2alm(map_true_td, Y_H=shH_td, weights=w_td)
 
-    alm_orig_hp = hp.map2alm(map_true_hp, lmax=Lmax, mmax=0, iter = 0, pol = False)
-    alm_hp = map2alm(map_true_hp, L_max=Lmax, device=device, Y_H=shH_hp, weights=w_hp)
-    alm_td = map2alm(map_true_td, L_max=Lmax, device=device, Y_H=shH_td, weights=w_td)
+    # Transform to alm_true shape
+    alm_hp = alm_diag(alm_hp.detach().cpu().numpy(), L_max=Lmax)
+    alm_td = alm_diag(alm_td.detach().cpu().numpy(), L_max=Lmax)
 
     # Accuracy Plot
     plt.figure(figsize=(8, 5))
@@ -55,7 +74,7 @@ if __name__ == "__main__":
     plt.title("MAE of alm reconstruction from map true", fontsize=14)
     plt.xlabel(r"Harmonic index $i$", fontsize=12)
     plt.ylabel("Absolute error", fontsize=12)
-    plt.yscale("log")
+    # plt.yscale("log")
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.legend(fontsize=14)
     plt.tight_layout()

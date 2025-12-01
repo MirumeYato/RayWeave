@@ -6,47 +6,43 @@ from typing import Optional
 import numpy as np
 import healpy as hp
 import matplotlib.pyplot as plt
+import torch
+
+from lib.tools.sht import compute_SH
 
 class  Angle(ABC):
-    def __init__(self, n: int = 1):
-        self.n_dirs = n
+    def __init__(self, n_size: int = 1, device = None, verbose = 0, dtype = torch.float64):
+        self.n_directions = n_size
+        self.device = device
+        self.dtype = dtype
+
     @property
-    def num_channels(self) -> int:
-        """How many channels needed to store angular histogram."""
-        return self.n_dirs
-    
-    def _angle2pix(self, phi: np.ndarray, theta: Optional[np.ndarray] = None) -> np.ndarray:
-        """
-        Vectorized: map angele (N,) -> HEALPix pixel indices (N,).
-        Keeps raw counts semantics (no normalization).
-        """
-        return phi
-    
-    def zero_hist(self, *shape_prefix: int, dtype=np.float32) -> np.ndarray:
-        """Allocate an angular histogram tensor with a given leading shape."""
-        return np.zeros((*shape_prefix, self.n_dirs), dtype=dtype)
+    def num_bins(self) -> int:
+        """How many bins (channels or directions) needed to store angular histogram."""
+        return self.n_directions
     
     @abstractmethod
-    def get_all_vecs(self):
+    def get_nodes_coord(self):
         pass
 
     @abstractmethod
-    def show_hist(ang_arr: np.ndarray):
+    def get_nodes_angles(self):
         pass
 
-class Angle2D(Angle):
-    """HEALPix-based angular discretization & utilities."""
-    def __init__(self, angle_arr_lenth: int = 3):
-        if angle_arr_lenth <= 0 or not isinstance(angle_arr_lenth, int):
-            raise ValueError("angle_arr_lenth must be an integer")
-        self.n_dirs = angle_arr_lenth
+    @abstractmethod
+    def get_weights(self):
+        pass
 
-    def get_all_vecs(self):
-        return NotImplemented
-    
-    def show_hist(ang_arr: np.ndarray):
-        """ Shows Mollweide projection of input array """
-        plt.hist(ang_arr)
+    def get_spherical_harmonics(self, Lmax, dtype=torch.complex128):
+        theta, phi = self.get_nodes_angles()
+
+        Y = compute_SH(theta=theta, phi=phi, L_max=Lmax, device=self.device, dtype=dtype)
+        Y_H = torch.conj(Y)
+        return Y, Y_H
+
+    # @abstractmethod
+    # def show_hist(ang_arr: np.ndarray):
+    #     pass
 
 # --- Angle: HEALPix helper (keeps anything angular in one place) -----------
 

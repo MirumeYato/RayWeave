@@ -9,9 +9,10 @@ print(PATH)
 sys.path.insert(0, PATH)
 #===============================#
 # Retry with fixed-size frames (avoid bbox_inches='tight' which changed image sizes).
-from lib.tools.sht import compute_SH, map_HenyeyGreenshtein, alm_HenyeyGreenshtein, map2map_xn, map2alm, alm2map
-from lib.tools.sht.Chebishev.nodes_HEALpix import get_spherical_harmonics as sht_hp
-from lib.tools.sht.Chebishev.nodes_tdesign import get_spherical_harmonics as sht_td
+from lib.tools import map_HenyeyGreenstein
+from sht import map2map_xn
+from lib.grid.Quadrature.Chebishev.QuadratureHEALPix import QuadratureHEALPix
+from lib.grid.Quadrature.Chebishev.QuadratureTdesign import QuadratureTdesign
 
 import matplotlib.pyplot as plt
 
@@ -25,7 +26,7 @@ os.makedirs(OUTPUT, exist_ok=True)
 
 
 def hp_loop(map_hp, n, Lmax, nside):
-    for i in range(1,n+1):
+    for _ in range(n):
         alm_hp = hp.map2alm(map_hp, lmax=Lmax, mmax=0, iter = 0, pol = False)
         map_hp = hp.alm2map(alm_hp, nside=nside, lmax=Lmax, mmax=0, pol = False)
     return map_hp
@@ -34,20 +35,35 @@ def hp_loop(map_hp, n, Lmax, nside):
 if __name__ == "__main__":
 
     N = 10
-    nside, Lmax = 5, 10
-    g = 0.7
+    nside, Lmax = 5, 11
+    g = 0.9
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    sh_hp, shH_hp, w_hp, theta_hp = sht_hp(nside, Lmax, device)
-    sh_td, shH_td, w_td, theta_td = sht_td(Lmax, device)
-
-    map_true_hp = map_HenyeyGreenshtein(g, theta_hp)
-    map_true_td = map_HenyeyGreenshtein(g, theta_td)
+    # Quadrature Methods
+    qTdesign = QuadratureTdesign(240, device=device)
+    qHEALPix = QuadratureHEALPix(nside, device=device)
+    # Spherical Harmonics (grids are different!)
+    sh_hp, shH_hp = qHEALPix.get_spherical_harmonics(Lmax) 
+    sh_td, shH_td = qTdesign.get_spherical_harmonics(Lmax)
+    # Weights (grids are different!) 
+    w_hp = qHEALPix.get_weights()
+    w_td = qTdesign.get_weights()
+    # Thetas (grids are different!)
+    theta_hp, __ = qHEALPix.get_nodes_angles()
+    theta_td, __ = qTdesign.get_nodes_angles()
+    # Meaning of HenyeyGreenshtein function in nodes points
+    map_true_hp = map_HenyeyGreenstein(g, theta_hp)
+    map_true_td = map_HenyeyGreenstein(g, theta_td)
     
-    map_orig_hp = hp_loop(map_true_hp, N, Lmax, nside)
-    map_hp = map2map_xn(map_true_hp, n=N, device=device, Y_H=shH_hp, Y=sh_hp, weights=w_hp)
-    map_td = map2map_xn(map_true_td, n=N, device=device, Y_H=shH_td, Y=sh_td, weights=w_td)
+    # Heal pix standart methods
+    map_orig_hp = hp_loop(map_true_hp.detach().cpu().numpy(), N, Lmax, nside)
+    # Our custom
+    map_hp = map2map_xn(map_true_hp.to(torch.complex128), n=N, Y_H=shH_hp, Y=sh_hp, weights=w_hp).detach().cpu().numpy()
+    map_td = map2map_xn(map_true_td.to(torch.complex128), n=N, Y_H=shH_td, Y=sh_td, weights=w_td).detach().cpu().numpy()
+
+    map_true_hp = map_true_hp.detach().cpu().numpy()
+    map_true_td = map_true_td.detach().cpu().numpy()
 
     # Accuracy Plot
     ### Get map (fHenyeyGreenshtein values) from alm (g**l)
