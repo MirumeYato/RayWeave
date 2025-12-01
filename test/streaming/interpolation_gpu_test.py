@@ -4,7 +4,7 @@ import os, sys
 # Get the directory where the script is located
 PATH = os.path.dirname(os.path.abspath(__file__))
 # Get the parent directory of the current directory
-PATH = os.path.abspath(os.path.join(PATH, '..'))
+PATH = os.path.abspath(os.path.join(PATH, '..', '..'))
 sys.path.insert(0, PATH)
 #===============================#
 # Retry with fixed-size frames (avoid bbox_inches='tight' which changed image sizes).

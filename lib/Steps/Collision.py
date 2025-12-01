@@ -1,7 +1,6 @@
 from .Step import Step
 from lib.State import FieldState
 from lib.grid.Angle import Angle3D
-from lib.grid.tools import prepare_grid
 
 import torch
 import torch.nn.functional as F
@@ -9,9 +8,9 @@ import torch.nn.functional as F
 import healpy as hp
 import numpy as np
 
-class Streaming(Step):
+class Collision(Step):
     """
-    Simple propagation via interpolation
+    Henyey-Greenstein scattering without moving. 
     """
     def __init__(self, speed = 1., device = None, vebrose = 0):
         # Grid for interpolation
@@ -43,7 +42,7 @@ class Streaming(Step):
         # Scale vectors by velocity
         shifts = torch.from_numpy(dirs.astype(np.float32)).to(self.device) * scale # [Q,3]
         # Get shifted grid (where we will calculate new field values)
-        self.shifted_grid = prepare_grid(shifts, N, self.device) # (Q, N, N, N, 3)
+        # self.shifted_grid = prepare_grid(shifts, N, self.device) # (Q, N, N, N, 3)
 
         if self.vebrose: print(f"""
     [DEBUG]: Setup stage
