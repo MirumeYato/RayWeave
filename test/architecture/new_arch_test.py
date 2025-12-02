@@ -9,45 +9,37 @@ sys.path.insert(0, PATH)
 #===============================#
 # Retry with fixed-size frames (avoid bbox_inches='tight' which changed image sizes).
 
-import imageio.v2 as imageio
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D  # noqa
-
-import numpy as np
 import torch
-from math import pi
-import healpy as hp
 
-from lib.grid.Angle import Angle3D
-from tqdm import trange, tqdm
+from lib.grid.Quadrature.Chebishev.QuadratureHEALPix import QuadratureHEALPix as Angle3D
 
 from models.dummy import make_dev_dummy_model, model, model_seq
 from lib.State import FieldState
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-dt = 1.
-nside = 2
-
-
+# Source Init
+Angle = Angle3D(n_size = 2, device=device)
+Q = Angle.num_bins
 N = 10
-Angle = Angle3D(healpix_nside = nside)
-Q = Angle.num_channels
+
+# Empty field
 field_tensor = torch.zeros((Q, N, N, N), dtype=torch.float32, device=device)
+# Adding sources
 c = N // 2
 c2 = Q // 2 + 5
-field_tensor[c2, c, c, c] = 1.0 # point-like source in the middl
+field_tensor[c2, c, c, c] = 1.0 # point-like source in the middle
 
+# Init FieldState
 state = FieldState(
     field=field_tensor,
-    dt=dt,
+    dt=1.,
     meta={
         "L_max": 2*3-3,
     }
 )
 
-
-propogator = make_dev_dummy_model(dt, 10, device=device)
+propogator = make_dev_dummy_model(state.dt, 10, device=device)
 propogator.run(state)
 
 print("test model approuach")

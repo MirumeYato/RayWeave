@@ -3,11 +3,17 @@ from __future__ import annotations
 # from dataclasses import dataclass, field
 from typing import List
 
+from lib.State import FieldState
+
+# Models pakages
 from lib import Step, Model, Sequential
 from lib.Strang.Engine import StrangEngine
+
+# Custom Observers and Steps
 from lib.Observers.Loggers import EnergyLogger
 from lib.Steps.dummy import DummyPropagate
 
+# Function-like run
 def make_dev_dummy_model(dt: float, n_steps: int, device) -> StrangEngine:
     """
     Simpliest propogater pipeline example. Do nothing, just pushes same FieldState further
@@ -18,10 +24,12 @@ def make_dev_dummy_model(dt: float, n_steps: int, device) -> StrangEngine:
     ]
     observers = [EnergyLogger(every=1)]
     return StrangEngine(steps, n_steps, dt, observers,
-                      device=device, compile_fused=True, use_cuda_graph=True)
+                      device=device, compile_fused=False, use_cuda_graph=False)
 
-from lib.State import FieldState
+# TODO: Refactor this! Not so usable, like simple function-like
 
+# Model-like run
+device = "cuda" 
 class Dummy_Model(Model):
     def __init__(self, T: Step, num_time_steps:int, dt:float, **kw):
         super().__init__(steps=[], num_time_steps=num_time_steps, dt=dt, **kw)
@@ -31,11 +39,10 @@ class Dummy_Model(Model):
         # Here we assume Steps read `state.dt` and internally use a factor.
         state = self.test(state)
         return state
-    
-device = "cpu"
 
-model = Dummy_Model(DummyPropagate(device), observers = [EnergyLogger()], num_time_steps=2, dt=0.01, use_cuda_graph = True)
+model = Dummy_Model(DummyPropagate(device), observers = [EnergyLogger()], num_time_steps=2, dt=0.01, use_cuda_graph = False)
 
-layers = [DummyPropagate(device),DummyPropagate(device)]
+# Sequential-like run
+layers = [DummyPropagate(device), DummyPropagate(device)]
 obs = [EnergyLogger()]
-model_seq = Sequential(layers, num_time_steps=100, dt=0.01, observers=obs, device="cuda", use_cuda_graph = True)
+model_seq = Sequential(layers, num_time_steps=100, dt=0.01, observers=obs, device=device, use_cuda_graph = False)

@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Callable
 import torch
 import torch._dynamo
 torch._dynamo.config.verbose = True
+# torch._dynamo.config.suppress_errors = True
 # torch._dynamo.config.log_level = logging.DEBUG
 
 # import numpy as np
@@ -180,34 +181,3 @@ class StrangEngine(Engine):
             for s in self.steps: s.teardown()
             
             return state
-
-
-# =====================================
-# needs refactoring
-
-# class SimplePropagator(Propagator):
-#     """Minimal propagator that runs each Step sequentially per timestep."""
-
-#     def run(
-#         self,
-#         grid: Grid,
-#         sources: Sequence[Source],
-#         steps: Sequence[Step],
-#         backup: BackupData,
-#         t_start: float,
-#         dt: float,
-#         num_time_steps: int,
-#     ) -> None:
-#         # 1) Emit
-#         for src in sources:
-#             grid.add_particles(src.emit(t_start))
-#         backup.on_emit(grid, t_start)
-
-#         # 2) Time integration
-#         t = t_start
-#         for k in range(1, num_time_steps + 1):
-#             for step in steps:
-#                 step.apply(grid, t, dt)
-#             t = t_start + k * dt
-#             backup.on_step_end(grid, t)
-#         backup.finalize()
