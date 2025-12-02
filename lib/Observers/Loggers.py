@@ -15,6 +15,6 @@ class EnergyLogger(Observer):
     def on_step_end(self, step_idx: int, state: FieldState) -> None:
         if step_idx % self.every == 0:
             # cheap summary; no sync if possible
-            total = state.field.sum().detach().item()
+            total = state.field.real.sum().detach().item()
             print(f"[{step_idx}] total_energy={total:.6e}")
 

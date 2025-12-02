@@ -50,7 +50,7 @@ class Streaming(Step):
     def forward(self, state: FieldState) -> FieldState:
         propagated_field = F.grid_sample( 
             state.field.unsqueeze(1), self.shifted_grid, mode="bilinear", padding_mode="zeros", align_corners=True
-        ).squeeze(1)  # [Q,1,N,N,N]
+        ).squeeze(1)  # [Q,1,N,N,N].squeeze(1) -> [Q,N,N,N]
 
         ##############################################################
         # TODO: Here no any dt multiplication (because it is very slow).

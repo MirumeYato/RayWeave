@@ -135,6 +135,51 @@ def alm_diagonalize(alm_with_m, L_max)-> np.ndarray:
 
     return alm
 
+#############
+
+def expand_f_l_to_lm(f_l: torch.Tensor, L_max: int) -> torch.Tensor:
+    """
+    Expands spherical harmonic coefficients f_l to f_lm.
+
+    Maps a tensor of shape (L_max+1,) containing values for each degree l
+    to a tensor of shape (P,), repeating each f_l[l] for (2l+1) entries
+    corresponding to orders m = -l, ..., l.
+
+    Args:
+        f_l (torch.Tensor): Tensor of shape (L_max + 1,) containing coefficients per degree l.
+        L_max (int): The maximum spherical harmonic degree.
+
+    Returns:
+        torch.Tensor: Expanded tensor where the value for degree l is repeated (2l+1) times.
+                      The resulting shape is (sum_{l=0}^{L_max} (2l+1),) = ((L_max+1)^2,).
+    
+    Raises:
+        AssertionError: If f_l shape does not match L_max + 1.
+    """
+    # PEP Optimization: Validate inputs
+    assert f_l.shape[0] == L_max + 1, \
+        f"Expected f_l to have size {L_max + 1}, got {f_l.shape[0]}"
+
+    # Functional Optimization: 
+    # Instead of Python loops, we use vector operations.
+    # 1. Create a tensor of counts for each l: [1, 3, 5, ..., 2*L_max + 1]
+    # We use the device of f_l to ensure we don't cause CPU/GPU mismatch errors.
+    repeats = torch.arange(0, L_max + 1, device=f_l.device) * 2 + 1
+
+    # 2. Use repeat_interleave which is highly optimized in C++
+    # This avoids creating the explicit index tensor entirely, saving memory and time.
+    return torch.repeat_interleave(f_l, repeats)
+
+
+# --- Legacy Function (For Comparison) ---
+def _legacy_expand_f_l_to_lm(f_l: torch.Tensor, L_max: int) -> torch.Tensor:
+    l_index_np = []
+    for l in range(L_max + 1):
+        for m in range(-l, l + 1):
+            l_index_np.append(l)
+    idx_l = torch.tensor(l_index_np, dtype=torch.long, device=f_l.device)
+    return f_l[idx_l]
+
 # ==============================
 # Debug / test
 # ==============================
