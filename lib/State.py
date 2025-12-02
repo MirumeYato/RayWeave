@@ -30,13 +30,15 @@ class FieldState:
     """
 
     field: torch.Tensor
-    t: float
     dt: float
     meta: Dict[str, Any]
 
-    def to(self, device: torch.device | str) -> "FieldState":
+    def to(self, device: torch.device | str, dtype: torch.dtype | None) -> "FieldState":
         dev = torch.device(device)
-        return replace(self, field=self.field.to(dev))
+        if dtype:
+            return replace(self, field=self.field.to(dev, dtype=dtype))
+        else:
+            return replace(self, field=self.field.to(dev))
     
     # @classmethod
     # def from_floats(cls, field: torch.Tensor, t: float, dt: float, meta: dict = None, device=None):

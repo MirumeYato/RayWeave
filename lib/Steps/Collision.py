@@ -25,8 +25,10 @@ class Collision(Step):
         self.speed = speed    # Speed of light
         self.g = anisotropy_coef    # Anisotropy coefitient of Henyey-Greenstein function
 
-    def setup(self, state: FieldState, fQuadrature: function, Lmax: int, dtype_float = torch.float64, dtype_complex = torch.complex128) -> None:
+    def setup(self, state: FieldState, fQuadrature: function, dtype_float = torch.float64, dtype_complex = torch.complex128) -> None:
         """Allocate reusable buffers or precompute constants (on correct device)."""
+
+        Lmax = state.meta["L_max"]
 
         # Check dimentions
         n_size = state.field.shape[0]             # angular
@@ -73,7 +75,7 @@ class Collision(Step):
         # just summation for lm. No need quadrature
         scattered_field = torch.einsum('p,qp->q', alm_scattered, self.shperical_harmonics) # [Q,1,N,N,N]
         
-        return FieldState(scattered_field, state.t + state.dt, state.dt, state.meta)
+        return FieldState(scattered_field, state.dt, state.meta)
     
         # Lines below does not work with torch.compile . Use them only when compile_fused=False, use_cuda_graph=False
         #     if self.vebrose: print(f""" 

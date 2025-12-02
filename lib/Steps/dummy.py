@@ -9,4 +9,4 @@ class DummyPropagate(Step):
         self.device = device # do not forget to initialize device here if you want to use specific one
 
     def forward(self, state: FieldState) -> FieldState:
-        return FieldState(state.field, state.t + state.dt, state.dt, state.meta)
+        return FieldState(state.field, state.dt, state.meta)

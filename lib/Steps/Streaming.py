@@ -51,7 +51,7 @@ class Streaming(Step):
             state.field.unsqueeze(1), self.shifted_grid, mode="bilinear", padding_mode="zeros", align_corners=True
         ).squeeze(1)  # [Q,1,N,N,N]
         
-        return FieldState(propagated_field, state.t + state.dt, state.dt, state.meta)
+        return FieldState(propagated_field, state.dt, state.meta)
     
         # Lines below does not work with torch.compile . Use them only when compile_fused=False, use_cuda_graph=False
         #     if self.vebrose: print(f""" 

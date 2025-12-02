@@ -116,7 +116,6 @@ class StrangEngine(Engine):
         with torch.cuda.graph(g):
             out_state: FieldState = step_fn(state)
             state.field.copy_(out_state.field)
-            state.t = out_state.t
 
         # main loop (fast replay)
         for i in range(self.num_time_steps):
@@ -135,7 +134,6 @@ class StrangEngine(Engine):
             out_state = step_fn(state)
             # state.field.copy_(out_state.field) # Safer, but too slow for calculation processes
             state.field = out_state.field        # Faster, but may be broken by changing operations
-            state.t = out_state.t
             for ob in self.observers: ob.on_step_end(i, state)
 
     def __inner_run_direct(self, state: FieldState) -> FieldState:
@@ -155,7 +153,7 @@ class StrangEngine(Engine):
         with torch.inference_mode():
             # Move state to device & clone a working instance
             f = init_state.field.to(device, non_blocking=True).contiguous()
-            state = FieldState(f, float(init_state.t), float(self.dt), dict(init_state.meta))
+            state = FieldState(f, float(self.dt), dict(init_state.meta))
 
             # Setup hooks & steps
             for s in self.steps: s.setup(state)
@@ -170,7 +168,6 @@ class StrangEngine(Engine):
             #     tmp: FieldState = step_fn(state)
             #     # write back into the original buffers to keep addresses stable
             #     state.field.copy_(tmp.field)
-            #     state.t = tmp.t
 
             # -- Time-stepping loop --
             if use_graph:
