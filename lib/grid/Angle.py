@@ -26,14 +26,14 @@ class  Angle(ABC):
         pass
 
     @abstractmethod
-    def get_nodes_angles(self):
+    def get_nodes_angles(self) -> tuple[torch.Tensor]:
         pass
 
     @abstractmethod
-    def get_weights(self):
+    def get_weights(self) -> torch.Tensor:
         pass
 
-    def get_spherical_harmonics(self, Lmax, dtype=torch.complex128):
+    def get_spherical_harmonics(self, Lmax, dtype=torch.complex128) -> tuple[torch.Tensor]:
         theta, phi = self.get_nodes_angles()
 
         Y = compute_SH(theta=theta, phi=phi, L_max=Lmax, device=self.device, dtype=dtype)
