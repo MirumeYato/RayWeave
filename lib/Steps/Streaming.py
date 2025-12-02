@@ -1,6 +1,6 @@
 from .Step import Step
 from lib.State import FieldState
-from lib.grid.Angle import Angle3D
+from lib.grid.Angle import Angle
 from lib.grid.tools import prepare_grid
 
 import torch
@@ -20,35 +20,31 @@ class Streaming(Step):
         self.speed = speed
         self.device = device
 
-    def setup(self, state: FieldState) -> None:
+    def setup(self, state: FieldState, fQuadrature: Angle, dtype_float) -> None:
         """Allocate reusable buffers or precompute constants (on correct device)."""
 
         # Check dimentions
-        nside = hp.npix2nside(state.field.shape[0]) # angular
-        space_dim = len(state.field.shape[1:])      # space
-        N = state.field.shape[-1] # bin number for space coordinates
-        if space_dim == 3: Angle = Angle3D(healpix_nside = nside)
-        elif space_dim == 2: 
-            # Angle = Angle2D(healpix_nside = healpix_nside)
-            print("Not impolemmented dimention num yet")
-            return NotImplemented
-        else: 
-            print("Not impolemmented dimention num yet")
-            return NotImplemented
+        n_size = state.field.shape[0]            # angular
+        spatial_dim = len(state.field.shape[1:]) # number of space dimensions (1D, 2D, 3D ...)
+        spatial_size = state.field.shape[-1]     # bin number for space coordinates
+
+        # Define quadrature algo
+        Quadrature: Angle = fQuadrature(n_size, 
+                device = self.device, verbose = self.vebrose, dtype = dtype_float)
 
         # Pre-calc grid with shifts
-        scale = 10.0 / (N - 1) * self.speed # hardcode scaling. Needs refactoring
+        scale = 10.0 / (spatial_size - 1) * self.speed  # hardcode scaling. Needs refactoring
         # Get massive with all pixels norm vectors.
-        dirs = Angle.get_all_vecs() # [Q,3], Q - angles dim.
+        dirs = Quadrature.get_nodes_coord()             # [Q,3], Q - angles dim.
         # Scale vectors by velocity
-        shifts = torch.from_numpy(dirs.astype(np.float32)).to(self.device) * scale # [Q,3]
+        shifts = torch.from_numpy(dirs.astype(np.float32)).to(self.device, dtype=dtype_float) * scale # [Q,3]
         # Get shifted grid (where we will calculate new field values)
-        self.shifted_grid = prepare_grid(shifts, N, self.device) # (Q, N, N, N, 3)
+        self.shifted_grid = prepare_grid(shifts, spatial_size=spatial_size, device=self.device)       # (Q, N, N, N, 3)
 
         if self.vebrose: print(f"""
     [DEBUG]: Setup stage
         Sucsesfully created shifted_grid with shape: {self.shifted_grid.shape}.
-        Angular dimention is {Angle.num_channels}, Spatial dimention is {N}\n""")
+        Angular dimention is {Quadrature.num_bins}, Spatial dimention is {spatial_size}\n""")
 
     def forward(self, state: FieldState) -> FieldState:
         propagated_field = F.grid_sample( 
