@@ -237,7 +237,7 @@ Grid = torch.Tensor
 # import ocnn
 
 # class OCNNGrid(Grid):
-#     def __init__(self, max_depth: int, healpix_nside: int, device: torch.device = None):
+#     def __init__(self, max_depth: int, healpix_nside: int, device: torch.device = "cpu"):
 #         self.max_depth = max_depth
 #         self.healpix_nside = healpix_nside
 #         self.n_dirs = hp.nside2npix(healpix_nside)

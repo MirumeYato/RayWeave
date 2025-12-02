@@ -30,7 +30,7 @@ def map_HenyeyGreenstein(g: float, theta: Tensor) -> Tensor:
     return map
 
 
-def alm_HenyeyGreenstein(g: float, L_max: int, device = None) -> Tensor:
+def alm_HenyeyGreenstein(g: float, L_max: int, device = "cpu") -> Tensor:
     """
     Exact expansion coefficients a_lm = 0 for m≠0 and
     a_l0 = sqrt(2l+1)/(4π) * g^l   (normalized real spherical harmonics).

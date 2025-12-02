@@ -14,7 +14,7 @@ class Collision(Step):
     Henyey-Greenstein scattering without moving. 
     """
     def __init__(self, anisotropy_coef: float, mu_absorb = 0, mu_scatter = 0, speed = 1,
-                 device = None, vebrose = 0):
+                 device = "cpu", vebrose = 0):
         # Grid for interpolation
         self.shifted_grid = None
         self.vebrose = vebrose

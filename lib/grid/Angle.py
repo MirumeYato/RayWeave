@@ -11,7 +11,7 @@ import torch
 from lib.tools.sht import compute_SH
 
 class  Angle(ABC):
-    def __init__(self, n_size: int = 1, device = None, verbose = 0, dtype = torch.float64):
+    def __init__(self, n_size: int = 1, device = "cpu", verbose = 0, dtype = torch.float64):
         self.n_directions = n_size
         self.device = device
         self.dtype = dtype

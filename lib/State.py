@@ -33,7 +33,7 @@ class FieldState:
     dt: float
     meta: Dict[str, Any]
 
-    def to(self, device: torch.device | str, dtype: torch.dtype | None) -> "FieldState":
+    def to(self, device: torch.device | str = "cpu", dtype: torch.dtype | None = None) -> "FieldState":
         dev = torch.device(device)
         if dtype:
             return replace(self, field=self.field.to(dev, dtype=dtype))

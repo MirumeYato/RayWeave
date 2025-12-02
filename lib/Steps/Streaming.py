@@ -13,7 +13,7 @@ class Streaming(Step):
     """
     Simple propagation via interpolation
     """
-    def __init__(self, speed = 1., device = None, vebrose = 0):
+    def __init__(self, speed = 1., device = "cpu", vebrose = 0):
         # Grid for interpolation
         self.shifted_grid = None
         self.vebrose = vebrose
