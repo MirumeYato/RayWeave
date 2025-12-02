@@ -54,10 +54,19 @@ class Collision(Step):
         g_l = alm_HenyeyGreenstein(g=self.g, L_max=Lmax, device=self.device).to(dtype = dtype_float)
         lambda_l = self.speed * (-(self.mu_absorb + self.mu_scatter) + self.mu_scatter * g_l)
         self.exp_lm = torch.exp(lambda_l * (state.dt / 2.0)) 
+
+        #################################################################
         # TODO: extend for using source (blm = map2alm(source_map)) also
         # Originally alm_star = exp_lm * alm + c*(exp_lm-1)/lambda_l * blm
         #       P.S. For delta(t)-like sources easier to init state.field = source_map, so blm=0 in any (r,t,s)
         #            So alm_star = exp_lm * alm (calculation is simplier)
+        # TODO: what if dt is not constant? Need adding possibility to 
+        #       precalculate self.exp_lm for all other predefined dt.
+        #
+        #       I think that here is no real need to change dt in real time. 
+        #       If dt was choosen bad, I think better to solve it adding some 
+        #       logger of error or initially try to make prediction od error and print it out
+        #       (look more same todo by "dt!=const")
 
         if self.vebrose: print(f"""
     [DEBUG]: Setup stage
@@ -70,7 +79,7 @@ class Collision(Step):
         alm = torch.matmul(state.field * self.weights, self.shperical_harmonics_H)
 
         # Spectral filtering: multiply by f_lm per (l,m)
-        alm_scattered = torch.einsum('pijk,p->pijk', alm, self.exp_lm)  # A_pv * exp_lm[:, None, None, None]
+        alm_scattered = torch.einsum('pijk,p->pijk', alm, self.exp_lm)  # A_pv * exp_lm[:, None, None, None] # TODO: what if dt is not constant? Need adding possibility to reinit self.exp_lm
 
         # just summation for lm. No need quadrature
         scattered_field = torch.einsum('p,qp->q', alm_scattered, self.shperical_harmonics) # [Q,1,N,N,N]

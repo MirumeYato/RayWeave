@@ -111,7 +111,9 @@ class Plot3D(Observer):
             ha="left", va="top",
             bbox=dict(facecolor="white", edgecolor="none", alpha=0.7, pad=3),
         )
-        self.ax.set_title(f"Photon flux 3D — step {step_idx} (t={step_idx*state.dt:.1f})") # TODO: time of picture functionality can be expanded (id dt is not constant)
+        self.ax.set_title(f"Photon flux 3D — step {step_idx} (t={step_idx*state.dt:.1f})") 
+        # TODO: what if dt is not constant? (look more same todo by "dt!=const")
+        #       We need to predefine array of dt's and just call needed element by 'step_idx'
 
         # Save frame
         frame_path = os.path.join(self.output_dir, f"flux_step_{step_idx:02d}.png")

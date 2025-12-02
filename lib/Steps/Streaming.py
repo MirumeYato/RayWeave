@@ -33,13 +33,14 @@ class Streaming(Step):
                 device = self.device, verbose = self.vebrose, dtype = dtype_float)
 
         # Pre-calc grid with shifts
-        scale = 10.0 / (spatial_size - 1) * self.speed  # hardcode scaling. Needs refactoring
+        scale = 10.0 / (spatial_size - 1) * self.speed  # TODO: hardcode scaling. Needs refactoring
         # Get massive with all pixels norm vectors.
         dirs = Quadrature.get_nodes_coord()             # [Q,3], Q - angles dim.
         # Scale vectors by velocity
-        shifts = torch.from_numpy(dirs.astype(np.float32)).to(self.device, dtype=dtype_float) * scale # [Q,3]
+        shifts = dirs.to(self.device, dtype=dtype_float) * scale # [Q,3]
         # Get shifted grid (where we will calculate new field values)
-        self.shifted_grid = prepare_grid(shifts, spatial_size=spatial_size, device=self.device)       # (Q, N, N, N, 3)
+        self.shifted_grid = prepare_grid(shifts, spatial_size=spatial_size, device=self.device) * state.dt      # (Q, N, N, N, 3)
+        # TODO: (look more same todo by "dt!=const")
 
         if self.vebrose: print(f"""
     [DEBUG]: Setup stage
@@ -50,6 +51,13 @@ class Streaming(Step):
         propagated_field = F.grid_sample( 
             state.field.unsqueeze(1), self.shifted_grid, mode="bilinear", padding_mode="zeros", align_corners=True
         ).squeeze(1)  # [Q,1,N,N,N]
+
+        ##############################################################
+        # TODO: Here no any dt multiplication (because it is very slow).
+        #       But than what if dt is not constant?
+        #       Better will be precalculate all possible self.shifted_grid * dt
+        #       and just coose here correct one by addresing by index of dt array.
+        #       (look more same todo by "dt!=const")
         
         return FieldState(propagated_field, state.dt, state.meta)
     

@@ -22,7 +22,7 @@ class  Angle(ABC):
         return self.n_directions
     
     @abstractmethod
-    def get_nodes_coord(self):
+    def get_nodes_coord(self) -> torch.Tensor:
         pass
 
     @abstractmethod

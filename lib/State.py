@@ -19,8 +19,6 @@ class FieldState:
     field : torch.Tensor
         The main field tensor (e.g., shape [B, C, Nx, Ny, Nz]). Must be on the
         same device as the engine.
-    t : float
-        Current simulation time (in user units).
     dt : float
         Current time-step size (may be updated each iteration by the engine
         when variable `dt` is used).
