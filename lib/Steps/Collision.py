@@ -1,64 +1,83 @@
 from .Step import Step
 from lib.State import FieldState
-from lib.grid.Angle import Angle3D
+from lib.grid.Angle import Angle
+from lib.tools.func_HenyeyGreenshtein import alm_HenyeyGreenstein
+
+from abc import abstractmethod
 
 import torch
-import torch.nn.functional as F
 
-import healpy as hp
 import numpy as np
 
 class Collision(Step):
     """
     Henyey-Greenstein scattering without moving. 
     """
-    def __init__(self, speed = 1., device = None, vebrose = 0):
+    def __init__(self, anisotropy_coef: float, mu_absorb = 0, mu_scatter = 0, speed = 1,
+                 device = None, vebrose = 0):
         # Grid for interpolation
         self.shifted_grid = None
         self.vebrose = vebrose
-        self.speed = speed
         self.device = device
 
-    def setup(self, state: FieldState) -> None:
+        self.mu_absorb = mu_absorb      # Absorbtion length
+        self.mu_scatter = mu_scatter    # Scattering length
+        self.speed = speed    # Speed of light
+        self.g = anisotropy_coef    # Anisotropy coefitient of Henyey-Greenstein function
+
+    def setup(self, state: FieldState, fQuadrature: function, Lmax: int, dtype_float = torch.float64, dtype_complex = torch.complex128) -> None:
         """Allocate reusable buffers or precompute constants (on correct device)."""
 
         # Check dimentions
-        nside = hp.npix2nside(state.field.shape[0]) # angular
-        space_dim = len(state.field.shape[1:])      # space
-        N = state.field.shape[-1] # bin number for space coordinates
-        if space_dim == 3: Angle = Angle3D(healpix_nside = nside)
-        elif space_dim == 2: 
-            # Angle = Angle2D(healpix_nside = healpix_nside)
-            print("Not impolemmented dimention num yet")
-            return NotImplemented
-        else: 
-            print("Not impolemmented dimention num yet")
-            return NotImplemented
+        n_size = state.field.shape[0]             # angular
+        spatial_dim = len(state.field.shape[1:])  # number of space dimensions (1D, 2D, 3D ...)
+        spatial_size = state.field.shape[-1]                 # bin number for space coordinates
 
-        # Pre-calc grid with shifts
-        scale = 10.0 / (N - 1) * self.speed # hardcode scaling. Needs refactoring
-        # Get massive with all pixels norm vectors.
-        dirs = Angle.get_all_vecs() # [Q,3], Q - angles dim.
-        # Scale vectors by velocity
-        shifts = torch.from_numpy(dirs.astype(np.float32)).to(self.device) * scale # [Q,3]
-        # Get shifted grid (where we will calculate new field values)
-        # self.shifted_grid = prepare_grid(shifts, N, self.device) # (Q, N, N, N, 3)
+        # Define quadrature algo
+        Quadrature: Angle = fQuadrature(n_size, 
+                device = self.device, verbose = self.vebrose, dtype = dtype_float)
+
+        # Pre-compute spherical harmonisc
+        self.shperical_harmonics, self.shperical_harmonics_H = Quadrature.get_spherical_harmonics(Lmax=Lmax, dtype=dtype_complex)
+        
+        # Define weights for numerical integration via quadrature
+        weights = Quadrature.get_weights()
+        # Type fix. For speed and correct type usage.
+        if isinstance(weights, (int, float)):
+            self.weights = torch.full_like(state.field, float(weights)) # If solution is Chebishev-like 
+        else:
+            self.weights = weights.to(device=state.field.device, dtype=state.field.dtype)
+
+        # Pre-calculate solution for Henyey-Greenstein's coefficients evolution.
+        g_l = alm_HenyeyGreenstein(g=self.g, L_max=Lmax, device=self.device).to(dtype = dtype_float)
+        lambda_l = self.speed * (-(self.mu_absorb + self.mu_scatter) + self.mu_scatter * g_l)
+        self.exp_lm = torch.exp(lambda_l * (state.dt / 2.0)) 
+        # TODO: extend for using source (blm = map2alm(source_map)) also
+        # Originally alm_star = exp_lm * alm + c*(exp_lm-1)/lambda_l * blm
+        #       P.S. For delta(t)-like sources easier to init state.field = source_map, so blm=0 in any (r,t,s)
+        #            So alm_star = exp_lm * alm (calculation is simplier)
 
         if self.vebrose: print(f"""
     [DEBUG]: Setup stage
-        Sucsesfully created shifted_grid with shape: {self.shifted_grid.shape}.
-        Angular dimention is {Angle.num_channels}, Spatial dimention is {N}\n""")
+        Sucsesfully spherical harmonisc was pre-computed with shape: {self.shperical_harmonics.shape}.
+        Angular dimention is {Quadrature.num_bins}, Spatial dimention is {spatial_size}\n""")
 
     def forward(self, state: FieldState) -> FieldState:
-        propagated_field = F.grid_sample( 
-            state.field.unsqueeze(1), self.shifted_grid, mode="bilinear", padding_mode="zeros", align_corners=True
-        ).squeeze(1)  # [Q,1,N,N,N]
         
-        return FieldState(propagated_field, state.t + state.dt, state.dt, state.meta)
+        # Core transform: a_lm = sum_p map(p) * Y_lm(p) * w(p)
+        alm = torch.matmul(state.field * self.weights, self.shperical_harmonics_H)
+
+        # Spectral filtering: multiply by f_lm per (l,m)
+        alm_scattered = torch.einsum('pijk,p->pijk', alm, self.exp_lm)  # A_pv * exp_lm[:, None, None, None]
+
+        # just summation for lm. No need quadrature
+        scattered_field = torch.einsum('p,qp->q', alm_scattered, self.shperical_harmonics) # [Q,1,N,N,N]
+        
+        return FieldState(scattered_field, state.t + state.dt, state.dt, state.meta)
     
         # Lines below does not work with torch.compile . Use them only when compile_fused=False, use_cuda_graph=False
         #     if self.vebrose: print(f""" 
         # [DEBUG]: Setup stage
-        #     Field sucsesfully propogated in time dt={state.dt}.
+        #     Field sucsesfully scattered in time dt={state.dt}.
         #     Initial shape: {state.field.shape}.
-        #     Result shape:  {propagated_field.shape}.\n""")
+        #     Result shape:  {scattered_field.shape}.\n""")
