@@ -17,7 +17,7 @@ class QuadratureHEALPix(Angle):
         print(f"[DEBUG]: number of pixel is {self.n_directions}")
         super().__init__(self.n_directions, device, verbose, dtype)
 
-    def get_nodes_coord(self):
+    def get_nodes_coord(self) -> torch.Tensor:
         """
         Get directions of all pixels using HEALPix pixel centers.
 
@@ -29,12 +29,12 @@ class QuadratureHEALPix(Angle):
         directions = np.array(hp.pix2vec(self.n_side, ipix)).T  # shape (n_dirs, 3)
         return torch.from_numpy(directions).to(device = self.device, dtype = self.dtype)
     
-    def get_weights(self):
+    def get_weights(self) -> float:
         """Weights for Chebishev method of integration"""
         weights = (4.0 * np.pi) / self.n_directions
         return weights
     
-    def get_nodes_angles(self)-> tuple:
+    def get_nodes_angles(self) -> tuple[torch.Tensor]:
         """
         :return: grid like arrays of theta and phi (theta ∈ [0,π], phi ∈ [0,2π))
         :rtype: tuple

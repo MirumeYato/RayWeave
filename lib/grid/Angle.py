@@ -30,7 +30,7 @@ class  Angle(ABC):
         pass
 
     @abstractmethod
-    def get_weights(self) -> torch.Tensor:
+    def get_weights(self) -> torch.Tensor | float:
         pass
 
     def get_spherical_harmonics(self, Lmax, dtype=torch.complex128) -> tuple[torch.Tensor]:

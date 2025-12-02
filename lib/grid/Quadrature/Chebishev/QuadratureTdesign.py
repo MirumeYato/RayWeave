@@ -28,7 +28,7 @@ class QuadratureTdesign(Angle):
         # directions = directions / norms
         return directions
     
-    def get_nodes_coord(self):
+    def get_nodes_coord(self) -> torch.Tensor:
         """
         Get directions of all pixels using T-design grid.
 
@@ -37,12 +37,12 @@ class QuadratureTdesign(Angle):
         """
         return torch.from_numpy(self.__get_nodes_coord()).to(device = self.device, dtype = self.dtype)
     
-    def get_weights(self):
+    def get_weights(self) -> float:
         """Weights for Chebishev method of integration"""
         weights = (4.0 * np.pi) / self.n_directions
         return weights
     
-    def get_nodes_angles(self)-> tuple:
+    def get_nodes_angles(self) -> tuple[torch.Tensor]:
         """
         :return: grid like arrays of theta and phi (theta ∈ [0,π], phi ∈ [0,2π))
         :rtype: tuple
