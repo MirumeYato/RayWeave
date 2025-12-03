@@ -107,7 +107,7 @@ class StrangEngine(Engine):
         return fn
 
     # ---- main run --------------------------------------------------------------
-    @performance
+    # @performance
     def __inner_run_graph(self, state: FieldState, step_fn: Callable[[FieldState], FieldState]) -> FieldState:
         print("[DEBUG]: Run with CUDA Graph")
         g = torch.cuda.CUDAGraph()
@@ -126,7 +126,7 @@ class StrangEngine(Engine):
             g.replay()
             for ob in self.observers: ob.on_step_end(i, state)
 
-    @performance
+    # @performance
     def __inner_run_simple(self, state: FieldState, step_fn: Callable[[FieldState], FieldState]) -> FieldState:
         print("[DEBUG]: Run (eager/compiled, no CUDA Graph)")
         for i in range(self.num_time_steps):

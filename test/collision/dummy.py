@@ -18,28 +18,7 @@ import torch
 from lib.State import FieldState
 from lib.grid.Quadrature.Chebishev.QuadratureTdesign import QuadratureTdesign as Angle3D
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-# Source Init
-Angle = Angle3D(n_size = 240, device=device)
-Q = Angle.num_bins
-N = 10
-
-# Empty field
-field_tensor = torch.zeros((Q, N, N, N), dtype=torch.complex128, device=device)
-# Adding sources
-c = N // 2
-c2 = Q // 2 + 5
-field_tensor[c2, c, c, c] = 1.0 # point-like source in the middle
-
-# Init FieldState
-state = FieldState(
-    field=field_tensor,
-    dt=1.,
-    meta={
-        "L_max": 10,
-    }
-)
+from lib.tools.func_HenyeyGreenshtein import map_HenyeyGreenstein
 
 # Models pakages
 from lib import Step
@@ -51,6 +30,31 @@ from lib.Observers.Plot import PlotMollviewInPoint
 from lib.Steps.Collision import Collision
 # from lib.Steps.dummy import DummyPropagate
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Source Init (needs refactoring)
+Angle = Angle3D(n_size = 240, device=device)
+Q = Angle.num_bins
+N = 10
+
+# Empty field
+field_tensor = torch.zeros((Q, N, N, N), dtype=torch.complex128, device=device)
+# Adding sources
+c = N // 2
+# c2 = Q // 2 + 5
+# field_tensor[c2, c, c, c] = 1.0 # point-like source in the middle
+thetas, __ = Angle.get_nodes_angles()
+field_tensor[:, c, c, c] = map_HenyeyGreenstein(0.9, thetas)
+
+# Init FieldState
+state = FieldState(
+    field=field_tensor,
+    dt=1e-5,
+    meta={
+        "L_max": 10,
+    }
+)
+
 # Function-like run
 def make_dev_dummy_model(dt: float, n_steps: int, Quadrature, device) -> StrangEngine:
     """
@@ -59,13 +63,21 @@ def make_dev_dummy_model(dt: float, n_steps: int, Quadrature, device) -> StrangE
     steps: List[Step] = [
         # DummyPropagate(device),
         # here can be any steps you want
-        Collision(0.01, Quadrature, 0., 0., device=device)
+        Collision(-0.9, Quadrature, 0., 1., device=device)
     ]
-    observers = [EnergyLogger(every=4), PlotMollviewInPoint([c,c,c], Quadrature, every=1)]
+    # Each observer impacts on calculation time. Make every parameter big as possible
+    observers = [EnergyLogger(every=500), PlotMollviewInPoint([c,c,c], Quadrature, every=1000)]
     return StrangEngine(steps, n_steps, dt, observers,
                       device=device, compile_fused=False, use_cuda_graph=False)
 
+propogator = make_dev_dummy_model(state.dt, 50000, Angle, device=device)
+final_state = propogator.run(state)
 
+# from lib.tools.plot_tools import maps_rmae
 
-propogator = make_dev_dummy_model(state.dt, 10, Angle, device=device)
-propogator.run(state)
+# Accuracy plot
+mae = torch.abs((final_state.field[:, c, c, c] - state.field[:, c, c, c]))
+# mae = torch.abs((final_state.field[:, c, c, c] - state.field[:, c, c, c])/state.field[:, c, c, c])
+# print(f"Mae in pixel with intencity = 1 is {mae[c2]}")
+print(f"Max Mae is {mae.max()}")
+# maps_rmae(mae.real.detach().cpu().numpy(), 10, rmae_flag=False)
