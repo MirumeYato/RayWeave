@@ -26,21 +26,21 @@ from lib.Strang.Engine import StrangEngine
 
 # Custom Observers and Steps
 from lib.Observers.Loggers import EnergyLogger
-from lib.Observers.Plot import PlotMollviewInPoint
+from lib.Observers.Plot import PlotMollviewInPoint, EnergyPlotter
 from lib.Steps.Collision import Collision
 # from lib.Steps.dummy import DummyPropagate
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Source Init (needs refactoring)
-Angle = Angle3D(n_size = 240, device=device)
+Angle = Angle3D(n_size = 240, device=device) # 10083 1014
 Q = Angle.num_bins
-N = 10
+N = 1
 
 # Empty field
 field_tensor = torch.zeros((Q, N, N, N), dtype=torch.complex128, device=device)
 # Adding sources
-c = N // 2
+c = 0#N // 2
 # c2 = Q // 2 + 5
 # field_tensor[c2, c, c, c] = 1.0 # point-like source in the middle
 thetas, __ = Angle.get_nodes_angles()
@@ -49,11 +49,13 @@ field_tensor[:, c, c, c] = map_HenyeyGreenstein(0.9, thetas)
 # Init FieldState
 state = FieldState(
     field=field_tensor,
-    dt=1e-5,
+    dt=1e-7,
     meta={
         "L_max": 10,
     }
 )
+
+n_time_steps = 1000000
 
 # Function-like run
 def make_dev_dummy_model(dt: float, n_steps: int, Quadrature, device) -> StrangEngine:
@@ -66,18 +68,18 @@ def make_dev_dummy_model(dt: float, n_steps: int, Quadrature, device) -> StrangE
         Collision(-0.9, Quadrature, 0., 1., device=device)
     ]
     # Each observer impacts on calculation time. Make every parameter big as possible
-    observers = [EnergyLogger(every=500), PlotMollviewInPoint([c,c,c], Quadrature, every=1000)]
+    observers = [EnergyLogger(every=n_time_steps//10), PlotMollviewInPoint([c,c,c], Quadrature, every=n_time_steps//10), EnergyPlotter(n_time_steps, every=n_time_steps//100)] # 
     return StrangEngine(steps, n_steps, dt, observers,
                       device=device, compile_fused=False, use_cuda_graph=False)
 
-propogator = make_dev_dummy_model(state.dt, 50000, Angle, device=device)
+propogator = make_dev_dummy_model(state.dt, n_time_steps, Angle, device=device)
 final_state = propogator.run(state)
 
 # from lib.tools.plot_tools import maps_rmae
 
-# Accuracy plot
-mae = torch.abs((final_state.field[:, c, c, c] - state.field[:, c, c, c]))
-# mae = torch.abs((final_state.field[:, c, c, c] - state.field[:, c, c, c])/state.field[:, c, c, c])
-# print(f"Mae in pixel with intencity = 1 is {mae[c2]}")
-print(f"Max Mae is {mae.max()}")
-# maps_rmae(mae.real.detach().cpu().numpy(), 10, rmae_flag=False)
+# # Accuracy plot
+# # mae = torch.abs((final_state.field[:, c, c, c] - state.field[:, c, c, c]))
+# mae = torch.abs((final_state.field[:, c, c, c].real - state.field[:, c, c, c]) / state.field[:, c, c, c])
+# # print(f"Mae in pixel with intencity = 1 is {mae[c2]}")
+# print(f"Max Mae is {mae.max()}")
+# maps_rmae(mae.real.detach().cpu().numpy(), 1, rmae_flag=True)
