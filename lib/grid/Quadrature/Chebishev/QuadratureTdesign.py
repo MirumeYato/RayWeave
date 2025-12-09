@@ -9,16 +9,24 @@ class QuadratureTdesign(Angle):
     """
     Docstring for QuadratureTdesign
     
-    :param n_size: number of quadratures nodes (or possible directions)
+    :param n_size: number of quadratures nodes (or possible directions). For now implemented only for N = nonsym: 240, 1014, 10083 sym: 1038, 10014, 52978 .
     :type n_size: int
     """
     def __init__(self, n_size = 1, device=None, verbose=0, dtype = torch.float64):
-        print(f"[DEBUG]: Choosen number of nodes is {n_size}") # TODO: make this as func with variability of nodes
-        if n_size != 240: raise NotImplemented
+        if verbose: print(f"[DEBUG]: Choosen number of nodes is {n_size}") # TODO: make this as func with variability of nodes
+
+        if n_size == 240: self.fname = 'hs021.00240' # no sym
+        elif n_size == 1014: self.fname = 'sf044.01014' 
+        elif n_size == 10083: self.fname = 'sf141.10083' 
+        elif n_size == 1038: self.fname = 'ss045.01038' # sym
+        elif n_size == 10014: self.fname = 'ss141.10014'
+        elif n_size == 52978: self.fname = 'ss325.52978'
+        else: raise NotImplemented
+
         super().__init__(n_size, device, verbose, dtype)
 
     def __get_nodes_coord(self):
-        coord = np.loadtxt(os.path.join(PATH,'cache','hs021.00240'))
+        coord = np.loadtxt(os.path.join(PATH,'cache', self.fname))
 
         # Convert your flat coord list into Nx3 matrix efficiently
         directions = np.asarray(coord, dtype=np.float64).reshape(-1, 3)  # shape (N, 3)
