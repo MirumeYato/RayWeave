@@ -214,10 +214,10 @@ class PlotMollviewInPoint(Observer):
         print("Start prop")
 
         # Initial step
-        self.on_step_end(-1, initial_state)
+        self.on_step_end(-1, initial_state, True)
 
-    def on_step_end(self, step_idx: int, state: FieldState) -> None:
-        if step_idx % self.every == 0:
+    def on_step_end(self, step_idx: int, state: FieldState, initial_flag = False) -> None:
+        if step_idx % self.every == 0 or initial_flag:
             step_idx +=1 # We had zero step on setup. 
             
             vol = (state.field.real)[:, self.x_id, self.y_id, self.z_id]          # shape [B]
@@ -237,10 +237,10 @@ class PlotMollviewInPoint(Observer):
             )
 
             # Add global text annotation (use figure coordinates instead of axes)
-            sum_ratio = float(vol.sum().detach().cpu().numpy()) / float(self.initial_energy)
+            sum_ratio = np.abs(1 - float(vol.sum().detach().cpu().numpy()) / float(self.initial_energy))
             self.fig.text(
                 0.02, 0.97,
-                rf"$\sum_i \omega_i(t) / \sum_i \omega_i(0) = {sum_ratio:.2e}$",
+                r"$|1 - \sum_i \omega_i(t) / \sum_i \omega_i(0)| =$"+f"\n= {sum_ratio:.2e}",
                 color="black",
                 fontsize=11,
                 ha="left", va="top",
@@ -261,4 +261,29 @@ class PlotMollviewInPoint(Observer):
 
         print("Finish")
         print(gif_path)
+
+class EnergyPlotter(Observer):
+    def __init__(self, n_steps: int, every: int = 50, output_directory = OUTPUT):
+        self.every = every
+        self.output_dir = output_directory
+        self.total = np.zeros(n_steps // every)
+    def on_step_end(self, step_idx: int, state: FieldState) -> None:
+        if step_idx % self.every == 0:
+            # cheap summary; no sync if possible
+            self.total[step_idx // self.every] = torch.relu(state.field.real).sum().detach().item()
+
+    def on_teardown(self) -> None: 
+        plt.figure(figsize=(8, 5))
+    
+        plt.plot(np.abs(1 - self.total / self.total[0]), color='C0')
+        plt.title("Conservation of energy", fontsize=14)
+        plt.ylabel(r"$1 - \sum_i \omega_i(t) / \sum_i \omega_i(0)$", fontsize=12)
+        plt.xlabel("Time step", fontsize=12)
+        plt.yscale("log")
+        plt.grid(True, linestyle="--", alpha=0.5)
+        # plt.legend(fontsize=14)
+        plt.tight_layout()
+
+        plt.savefig(os.path.join(self.output_dir, "Energy_t.png"), dpi=150)   
+        plt.close()      
         

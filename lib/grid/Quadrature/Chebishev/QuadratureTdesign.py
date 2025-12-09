@@ -45,9 +45,9 @@ class QuadratureTdesign(Angle):
         """
         return torch.from_numpy(self.__get_nodes_coord()).to(device = self.device, dtype = self.dtype)
     
-    def get_weights(self) -> float:
+    def get_weights(self) -> np.float64:
         """Weights for Chebishev method of integration"""
-        weights = (4.0 * np.pi) / self.n_directions
+        weights = np.float64((4.0 * np.pi)) / np.float64(self.n_directions)
         return weights
     
     def get_nodes_angles(self) -> tuple[torch.Tensor]:
@@ -63,6 +63,6 @@ class QuadratureTdesign(Angle):
         theta = np.arctan2(r_xy, z)    # θ ∈ [0, π]
 
         phi = np.arctan2(y, x)         # φ ∈ (-π, π]
-        phi = np.mod(phi, 2 * np.pi)   # φ ∈ [0, 2π)
+        phi = np.mod(phi, np.float64(2. * np.pi))   # φ ∈ [0, 2π)
         return torch.from_numpy(theta).to(device = self.device, dtype = self.dtype), \
             torch.from_numpy(phi).to(device = self.device, dtype = self.dtype)
