@@ -9,6 +9,7 @@ ROOT_DIR = os.path.abspath(os.path.join(ROOT_DIR, '..', '..'))
 sys.path.insert(0, ROOT_DIR)
 #===============================#
 
+from tqdm import tqdm
 import pytest
 import numpy as np
 import torch
@@ -31,10 +32,13 @@ except ImportError:
 OUTPUT_DIR = os.path.join(ROOT_DIR, 'output', 'test', 'sht_heatmap')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+ANGLE_GRID_N = 1014 # sym: # 52978 # 10014 # 1038 # non-sym: # 10083 # 1014 # 240
+NSIDE = 10 # 29 # 10 # 5
+L_RIGHT = 50 # 21
+
 N_ITER = 1
-NSIDE = 5
 ERROR_THRESHOLD = 0.1
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+DEVICE = 'cpu' #torch.device('cuda' if torch.cuda.is_available() else 'cpu') # I do not have enough memory on GPU
 
 # --- 4. Helper Functions ---
 
@@ -65,7 +69,7 @@ def test_sht_accuracy_landscape():
     
     # Define Search Space
     # L_max: 2 to 20
-    l_values = np.arange(2, 21, 1)
+    l_values = np.arange(2, L_RIGHT, 1)
     # g: 0 to 0.95 (We assume symmetry and test positive g for simplicity in this heatmap)
     g_values = np.arange(0, 0.96, 0.05)
     # g_values = np.arange(0, -0.96, -0.05)
@@ -79,13 +83,13 @@ def test_sht_accuracy_landscape():
     print(f"\nStarting Adaptive Grid Search (Threshold: {ERROR_THRESHOLD})...")
 
     # --- Main Loop ---
-    for l_idx, lmax in enumerate(l_values):
+    for l_idx, lmax in tqdm(enumerate(l_values), total=len(l_values)):
         
         # Pre-compute SH bases for this Lmax to save time (if applicable)
         # Note: In strict unit testing we might re-init per call, but for speed we do it here
 
         # Quadrature Methods
-        qTdesign = QuadratureTdesign(240, device=DEVICE)
+        qTdesign = QuadratureTdesign(ANGLE_GRID_N, device=DEVICE)
         qHEALPix = QuadratureHEALPix(NSIDE, device=DEVICE)
         # Spherical Harmonics (grids are different!)
         sh_hp, shH_hp = qHEALPix.get_spherical_harmonics(int(lmax)) 
@@ -176,6 +180,7 @@ def test_sht_accuracy_landscape():
         plt.title(f"Accuracy Heatmap: {method_name}\n(N={N_ITER}, nside={NSIDE})", fontsize=14)
         plt.xlabel(r"Orbital Momentum $L_{max}$", fontsize=12)
         plt.ylabel(r"Anisotropy $g$", fontsize=12)
+        plt.ylim(0.,1.)
         
         # Mark the "Safe Zone" (Error < 0.05)
         plt.contour(data, levels=[ERROR_THRESHOLD], 
