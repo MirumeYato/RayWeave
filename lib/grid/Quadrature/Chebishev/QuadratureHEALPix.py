@@ -14,7 +14,7 @@ class QuadratureHEALPix(Angle):
     def __init__(self, n_size = 1, device=None, verbose=0, dtype = torch.float64):
         self.n_side = n_size
         self.n_directions = hp.nside2npix(n_size)
-        print(f"[DEBUG]: number of pixel is {self.n_directions}")
+        if verbose: print(f"[DEBUG]: number of pixel is {self.n_directions}")
         super().__init__(self.n_directions, device, verbose, dtype)
 
     def get_nodes_coord(self) -> torch.Tensor:
