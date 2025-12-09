@@ -24,10 +24,10 @@ class Collision(Step):
         self.dtype_float = dtype_float 
         self.dtype_complex = dtype_complex
 
-        self.mu_absorb = mu_absorb      # Absorbtion length
-        self.mu_scatter = mu_scatter    # Scattering length
-        self.speed = speed    # Speed of light
-        self.g = anisotropy_coef    # Anisotropy coefitient of Henyey-Greenstein function
+        self.mu_absorb = np.float64(mu_absorb)      # Absorbtion length
+        self.mu_scatter = np.float64(mu_scatter)    # Scattering length
+        self.speed = np.float64(speed)    # Speed of light
+        self.g = np.float64(anisotropy_coef)    # Anisotropy coefitient of Henyey-Greenstein function
 
         self.Quadrature:Angle = Quadrature
 
@@ -48,16 +48,16 @@ class Collision(Step):
         weights = self.Quadrature.get_weights()
         # Type fix. For speed and correct type usage.
         # TODO: really not well designed now. To match memory used here
-        if isinstance(weights, (int, float)):
-            self.weights = torch.full_like(state.field, float(weights), 
+        if isinstance(weights, (int, float, np.float64)):
+            self.weights = torch.full_like(state.field, np.float64(weights), 
                     device=state.field.device, dtype=state.field.dtype) # If solution is Chebishev-like 
         else:
             self.weights = weights.to(device=state.field.device, dtype=state.field.dtype) 
 
         # Pre-calculate solution for Henyey-Greenstein's coefficients evolution.
-        g_l = alm_HenyeyGreenstein(g=self.g, L_max=Lmax, device=self.device).to(dtype=self.dtype_float)
+        g_l = alm_HenyeyGreenstein(g=self.g, L_max=Lmax, device=self.device).to(dtype=self.dtype_complex)
         lambda_l = self.speed * (-(self.mu_absorb + self.mu_scatter) + self.mu_scatter * g_l)
-        exp_lm = torch.exp(lambda_l * (state.dt / 2.0)) 
+        exp_lm = torch.exp(lambda_l * np.complex128(state.dt / 2.0)) 
         self.exp_lm = expand_f_l_to_lm(exp_lm, Lmax)
 
         #################################################################
@@ -89,6 +89,9 @@ class Collision(Step):
 
         # just summation for lm. No need quadrature
         scattered_field = torch.einsum('pijk,qp->qijk', alm_scattered, self.shperical_harmonics) # [Q,N,N,N]
+
+        # scattered_field.real.relu_() # make zero of negative real items
+        # scattered_field.imag.zero_()
         
         return FieldState(scattered_field, state.dt, state.meta)
     
