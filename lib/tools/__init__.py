@@ -1,2 +1,3 @@
 from .profiler import profile_time_and_memory as performance
 from .func_HenyeyGreenshtein import map_HenyeyGreenstein, alm_HenyeyGreenstein
+from .mem_plot_profiler import profile_memory_usage
