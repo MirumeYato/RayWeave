@@ -41,7 +41,7 @@ class TestMemoryProfiler:
         # 2. Define Test Simulation
         # We disable plotting to prevent GUI windows during tests
         @profile_memory_usage(interval=0.01, plot=False)
-        def simulation():
+        def simulation(**kwargs):
             # Baseline (Sleep to establish stable start)
             time.sleep(0.2)
             
@@ -104,7 +104,7 @@ class TestMemoryProfiler:
         expected_mb = calculate_theoretical_mb(shape, np.float64)
         
         @profile_memory_usage(interval=0.01, plot=False)
-        def scipy_sim():
+        def scipy_sim(**kwargs):
             time.sleep(0.1)
             # np.random.rand creates float64 by default (standard for SciPy/NumPy)
             arr = np.random.rand(*shape) 
