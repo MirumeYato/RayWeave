@@ -3,11 +3,11 @@ from lib.State import FieldState
 from lib.grid.Angle import Angle
 from lib.tools.func_HenyeyGreenshtein import alm_HenyeyGreenstein, expand_f_l_to_lm
 
-from abc import abstractmethod
+from lib.tools.mem_plot_profiler import profile_memory_usage, log_event
 
 import torch
-
 import numpy as np
+import gc
 
 class Collision(Step):
     """
@@ -31,9 +31,10 @@ class Collision(Step):
 
         self.Quadrature:Angle = Quadrature
 
-    def setup(self, state: FieldState) -> None:
+    # @profile_memory_usage(interval=0.00001)
+    def setup(self, state: FieldState, **kwargs) -> None:
         """Allocate reusable buffers or precompute constants (on correct device)."""
-
+        log_event("start", **kwargs)
         Lmax = state.meta["L_max"]
 
         # Check dimentions
@@ -41,8 +42,13 @@ class Collision(Step):
         spatial_dim = len(state.field.shape[1:])  # number of space dimensions (1D, 2D, 3D ...)
         spatial_size = state.field.shape[-1]                 # bin number for space coordinates
 
-        # Pre-compute spherical harmonisc
+        # if self.vebrose: log_event("before SH", **kwargs)
+
+        # Pre-compute spherical harmonisc. shape {Quadrature.num_bins, (L+1)**2}
         self.shperical_harmonics, self.shperical_harmonics_H = self.Quadrature.get_spherical_harmonics(Lmax=Lmax, dtype=self.dtype_complex)
+        if self.vebrose: 
+            print(f"L_max is {Lmax}, num of angle directions {self.Quadrature.num_bins}\nShperical harmonics shae is: {self.shperical_harmonics.shape}")
+            # log_event("SH precalculated", **kwargs)
         
         # Define weights for numerical integration via quadrature
         weights = self.Quadrature.get_weights()
@@ -53,6 +59,8 @@ class Collision(Step):
                     device=state.field.device, dtype=state.field.dtype) # If solution is Chebishev-like 
         else:
             self.weights = weights.to(device=state.field.device, dtype=state.field.dtype) 
+
+        # if self.vebrose: log_event("checked weights", **kwargs)
 
         # Pre-calculate solution for Henyey-Greenstein's coefficients evolution.
         g_l = alm_HenyeyGreenstein(g=self.g, L_max=Lmax, device=self.device).to(dtype=self.dtype_complex)
@@ -73,15 +81,17 @@ class Collision(Step):
         #       logger of error or initially try to make prediction od error and print it out
         #       (look more same todo by "dt!=const")
 
-        if self.vebrose: print(f"""
+        if self.vebrose: 
+            print(f"""
     [DEBUG]: Setup stage
         Sucsesfully spherical harmonisc was pre-computed with shape: {self.shperical_harmonics.shape}.
         Angular dimention is {self.Quadrature.num_bins}, Spatial dimention is {spatial_size}\n""")
+            # log_event("precalculated exp(lambda dt)", **kwargs)
 
     def forward(self, state: FieldState) -> FieldState:
         
         # A_pv = sum_q  w * I_qv * conj(Y_qp)
-        # einsum shapes: (q) , (qv) , (qp) -> (pv)
+        # einsum shapes: (qv) , (qp) -> (pv)
         alm = torch.einsum('qijk,qp->pijk', state.field * self.weights, self.shperical_harmonics_H) # (P, V), complex
 
         # Spectral filtering: multiply by f_lm per (l,m)
@@ -101,3 +111,10 @@ class Collision(Step):
         #     Field sucsesfully scattered in time dt={state.dt}.
         #     Initial shape: {state.field.shape}.
         #     Result shape:  {scattered_field.shape}.\n""")
+
+    def teardown(self):
+        del self.exp_lm
+        del self.shperical_harmonics
+        del self.shperical_harmonics_H        
+        gc.collect()
+        
