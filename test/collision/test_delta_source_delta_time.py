@@ -110,7 +110,7 @@ def test_collision_model_accuracy(setup_environment, g_fin, mu_a, mu_s, dt):
         # (Adding a tiny epsilon or masking might be necessary if theory can be 0)
         epsilon = 1e-15
         diff = torch.abs(final_field_slice - theory_field)
-        rmae_tensor = diff #/ (torch.abs(theory_field) + epsilon)
+        rmae_tensor = diff / (torch.abs(theory_field) + epsilon)
         
         # We take the maximum error across the tensor to be strict
         max_rmae = rmae_tensor.max().item()
