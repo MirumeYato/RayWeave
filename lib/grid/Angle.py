@@ -45,7 +45,7 @@ class  Angle(ABC):
         Method for checking if spherical harmonics calculsated correctly.
         By definition:
         
-        >>> r"Norm $= \int |Y_{lm}(theta, phi)|^2 d\Omega = \sum weights * Y * Y_H = 1$"
+        >>> Norm $= \int |Y_{lm}(theta, phi)|^2 d\Omega = \sum weights * Y * Y_H = 1
 
         This checker returns mae = |Norm-1|.
         So mae should be very small like 1e-2 or smaller. If it not so, than something is wrong. 
