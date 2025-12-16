@@ -39,6 +39,27 @@ class  Angle(ABC):
         Y = compute_SH(theta=theta, phi=phi, L_max=Lmax, device=self.device, dtype=dtype)
         Y_H = torch.conj(Y)
         return Y, Y_H
+    
+    def check_norm(self, Lmax: int, dtype=torch.complex128):
+        """
+        Method for checking if spherical harmonics calculsated correctly.
+        By definition:
+        
+        >>> r"Norm $= \int |Y_{lm}(theta, phi)|^2 d\Omega = \sum weights * Y * Y_H = 1$"
+
+        This checker returns mae = |Norm-1|.
+        So mae should be very small like 1e-2 or smaller. If it not so, than something is wrong. 
+        
+        :param Lmax: maximum order ot orbital moment L
+        :type Lmax: int
+        """
+        shperical_harmonics, shperical_harmonics_H = self.get_spherical_harmonics(Lmax, dtype=dtype)
+        print(f"DEBUG:\nShape of shperical harmonics is {shperical_harmonics.shape}.")
+        # Get \int |Y_{lm}^2(theta, phi)| d\Omega = \sum weights * Y * Y_H
+        norm: torch.Tensor = torch.sum(shperical_harmonics * shperical_harmonics_H, axis=0) * self.get_weights()
+        # print(norm.abs().detach().cpu().numpy()) # all values of l m. All should be equal to 1.
+        mae = torch.abs(norm - 1.).detach().cpu().numpy()
+        print(r"Max mae $= |\int |Y_{lm}(theta, phi)|^2 d\Omega - 1|$ is ", mae.max())
 
     # @abstractmethod
     # def show_hist(ang_arr: np.ndarray):
