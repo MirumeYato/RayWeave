@@ -267,6 +267,7 @@ class EnergyPlotter(Observer):
         self.every = every
         self.output_dir = output_directory
         self.total = np.zeros(n_steps // every)
+        
     def on_step_end(self, step_idx: int, state: FieldState) -> None:
         if step_idx % self.every == 0:
             # cheap summary; no sync if possible

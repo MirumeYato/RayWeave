@@ -12,6 +12,7 @@ from lib.State import FieldState
 class EnergyLogger(Observer):
     def __init__(self, every: int = 50):
         self.every = every
+
     def on_step_end(self, step_idx: int, state: FieldState) -> None:
         if step_idx % self.every == 0:
             # cheap summary; no sync if possible

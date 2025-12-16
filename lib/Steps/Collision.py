@@ -1,7 +1,7 @@
 from .Step import Step
 from lib.State import FieldState
 from lib.grid.Angle import Angle
-from lib.tools.func_HenyeyGreenshtein import alm_HenyeyGreenstein, expand_f_l_to_lm
+from lib.tools.func_HenyeyGreenshtein import alm_HenyeyGreenstein, expand_repeating_al_to_alm as expand_lm
 
 from lib.tools.mem_plot_profiler import profile_memory_usage, log_event
 
@@ -34,7 +34,7 @@ class Collision(Step):
     # @profile_memory_usage(interval=0.00001)
     def setup(self, state: FieldState, **kwargs) -> None:
         """Allocate reusable buffers or precompute constants (on correct device)."""
-        log_event("start", **kwargs)
+        # log_event("start", **kwargs)
         Lmax = state.meta["L_max"]
 
         # Check dimentions
@@ -46,9 +46,9 @@ class Collision(Step):
 
         # Pre-compute spherical harmonisc. shape {Quadrature.num_bins, (L+1)**2}
         self.shperical_harmonics, self.shperical_harmonics_H = self.Quadrature.get_spherical_harmonics(Lmax=Lmax, dtype=self.dtype_complex)
-        if self.vebrose: 
-            print(f"L_max is {Lmax}, num of angle directions {self.Quadrature.num_bins}\nShperical harmonics shae is: {self.shperical_harmonics.shape}")
-            # log_event("SH precalculated", **kwargs)
+        # if self.vebrose: 
+        #     print(f"L_max is {Lmax}, num of angle directions {self.Quadrature.num_bins}\nShperical harmonics shae is: {self.shperical_harmonics.shape}")
+        #     log_event("SH precalculated", **kwargs)
         
         # Define weights for numerical integration via quadrature
         weights = self.Quadrature.get_weights()
@@ -63,10 +63,11 @@ class Collision(Step):
         # if self.vebrose: log_event("checked weights", **kwargs)
 
         # Pre-calculate solution for Henyey-Greenstein's coefficients evolution.
-        g_l = alm_HenyeyGreenstein(g=self.g, L_max=Lmax, device=self.device).to(dtype=self.dtype_complex)
-        lambda_l = self.speed * (-(self.mu_absorb + self.mu_scatter) + self.mu_scatter * g_l)
-        exp_lm = torch.exp(lambda_l * np.complex128(state.dt / 2.0)) 
-        self.exp_lm = expand_f_l_to_lm(exp_lm, Lmax)
+        g_l = alm_HenyeyGreenstein(g=self.g, L_max=Lmax, device=self.device).to(dtype=self.dtype_complex) # {L+1}
+        lambda_l = self.speed * (-(self.mu_absorb + self.mu_scatter) + self.mu_scatter * g_l) # {L+1}
+        exp_lm = torch.exp(lambda_l * np.complex128(state.dt / 2.0)) # {L+1}
+        self.exp_lm = expand_lm(exp_lm, Lmax) # {(L+1)^2}
+
 
         #################################################################
         # TODO: extend for using source (blm = map2alm(source_map)) also
@@ -85,20 +86,38 @@ class Collision(Step):
             print(f"""
     [DEBUG]: Setup stage
         Sucsesfully spherical harmonisc was pre-computed with shape: {self.shperical_harmonics.shape}.
+        Sucsesfully exp(lambda_l dt) was pre-computed with shape: {self.exp_lm.shape}.
         Angular dimention is {self.Quadrature.num_bins}, Spatial dimention is {spatial_size}\n""")
             # log_event("precalculated exp(lambda dt)", **kwargs)
 
-    def forward(self, state: FieldState) -> FieldState:
+    # @profile_memory_usage(interval=0.00001)
+    def forward(self, state: FieldState, **kwargs) -> FieldState:
+    #     if self.vebrose: 
+    #         print(f"""
+    # [DEBUG]: cycle stage
+    #     Field shape: {state.field.shape}.
+    #     Weights shape: {self.weights.shape}.\n""")
+            # log_event("start", **kwargs)
         
         # A_pv = sum_q  w * I_qv * conj(Y_qp)
         # einsum shapes: (qv) , (qp) -> (pv)
         alm = torch.einsum('qijk,qp->pijk', state.field * self.weights, self.shperical_harmonics_H) # (P, V), complex
+        
+        # if self.vebrose: 
+        #     print(f"alm shape {alm.shape}")
+        #     log_event("alm calculated", **kwargs)
 
         # Spectral filtering: multiply by f_lm per (l,m)
         alm_scattered = torch.einsum('pijk,p->pijk', alm, self.exp_lm)  # A_pv * exp_lm[:, None, None, None] # TODO: what if dt is not constant? Need adding possibility to reinit self.exp_lm
 
+        # if self.vebrose: 
+        #     print(f"alm shape {alm_scattered.shape}")
+        #     log_event("alm scattered", **kwargs)
+
         # just summation for lm. No need quadrature
         scattered_field = torch.einsum('pijk,qp->qijk', alm_scattered, self.shperical_harmonics) # [Q,N,N,N]
+        
+        # if self.vebrose: log_event("end", **kwargs)
 
         # scattered_field.real.relu_() # make zero of negative real items
         # scattered_field.imag.zero_()

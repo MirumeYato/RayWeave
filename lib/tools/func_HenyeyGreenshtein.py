@@ -33,7 +33,7 @@ def map_HenyeyGreenstein(g: float, theta: Tensor) -> Tensor:
 def alm_HenyeyGreenstein(g: float, L_max: int, device = "cpu") -> Tensor:
     """
     Exact expansion coefficients a_lm = 0 for m≠0 and
-    a_l0 = sqrt(2l+1)/(4π) * g^l   (normalized real spherical harmonics).
+    a_l0 = sqrt((2l+1)/(4π)) * g^l   (normalized real spherical harmonics).
 
     Parameters
     ----------
@@ -137,16 +137,16 @@ def alm_diagonalize(alm_with_m, L_max)-> np.ndarray:
 
 #############
 
-def expand_f_l_to_lm(f_l: torch.Tensor, L_max: int) -> torch.Tensor:
+def expand_repeating_al_to_alm(al: torch.Tensor, L_max: int) -> torch.Tensor:
     """
-    Expands spherical harmonic coefficients f_l to f_lm.
+    Expands spherical harmonic coefficients al to alm.
 
     Maps a tensor of shape (L_max+1,) containing values for each degree l
-    to a tensor of shape (P,), repeating each f_l[l] for (2l+1) entries
+    to a tensor of shape (P,), repeating each al[l] for (2l+1) entries
     corresponding to orders m = -l, ..., l.
 
     Args:
-        f_l (torch.Tensor): Tensor of shape (L_max + 1,) containing coefficients per degree l.
+        al (torch.Tensor): Tensor of shape (L_max + 1,) containing coefficients per degree l.
         L_max (int): The maximum spherical harmonic degree.
 
     Returns:
@@ -154,31 +154,85 @@ def expand_f_l_to_lm(f_l: torch.Tensor, L_max: int) -> torch.Tensor:
                       The resulting shape is (sum_{l=0}^{L_max} (2l+1),) = ((L_max+1)^2,).
     
     Raises:
-        AssertionError: If f_l shape does not match L_max + 1.
+        AssertionError: If al shape does not match L_max + 1.
     """
     # PEP Optimization: Validate inputs
-    assert f_l.shape[0] == L_max + 1, \
-        f"Expected f_l to have size {L_max + 1}, got {f_l.shape[0]}"
+    assert al.shape[0] == L_max + 1, \
+        f"Expected al to have size {L_max + 1}, got {al.shape[0]}"
 
     # Functional Optimization: 
     # Instead of Python loops, we use vector operations.
     # 1. Create a tensor of counts for each l: [1, 3, 5, ..., 2*L_max + 1]
-    # We use the device of f_l to ensure we don't cause CPU/GPU mismatch errors.
-    repeats = torch.arange(0, L_max + 1, device=f_l.device) * 2 + 1
+    # We use the device of al to ensure we don't cause CPU/GPU mismatch errors.
+    repeats = torch.arange(0, L_max + 1, device=al.device) * 2 + 1
 
     # 2. Use repeat_interleave which is highly optimized in C++
     # This avoids creating the explicit index tensor entirely, saving memory and time.
-    return torch.repeat_interleave(f_l, repeats)
+    return torch.repeat_interleave(al, repeats)
 
+def expand_zeros_al_to_alm(al: torch.Tensor, L_max: int) -> torch.Tensor:
+    """
+    Expands spherical harmonic coefficients al to alm, storing al only for m=0
+    and setting all other m!=0 coefficients to zero.
+
+    The order of the resulting tensor follows the standard (l, m) indexing:
+    l=0: m=0
+    l=1: m=-1, m=0, m=1
+    l=2: m=-2, m=-1, m=0, m=1, m=2
+    ...
+
+    Args:
+        al (torch.Tensor): Tensor of shape (L_max + 1,) containing coefficients per degree l.
+        L_max (int): The maximum spherical harmonic degree.
+
+    Returns:
+        torch.Tensor: Expanded tensor of shape ((L_max+1)^2,) with al[l] at m=0 positions, 
+                      and zeros elsewhere.
+    
+    Raises:
+        AssertionError: If al shape does not match L_max + 1.
+    """
+    # 1. Input Validation
+    assert al.shape[0] == L_max + 1, \
+        f"Expected al to have size {L_max + 1}, got {al.shape[0]}"
+
+    # 2. Determine the total size P of the alm tensor
+    # P = sum_{l=0}^{L_max} (2l+1) = (L_max + 1)^2
+    P = (L_max + 1) ** 2
+
+    # 3. Initialize the result tensor alm with zeros
+    # Use the same dtype and device as the input al for consistency and performance
+    alm = torch.zeros(P, dtype=al.dtype, device=al.device)
+
+    # 4. Calculate the indices where m = 0 occurs
+    # The m=0 index for degree l is: (2l + 1) * l
+    # A more robust way is to find the cumulative sum of (2l+1) up to l-1,
+    # and then add 'l' (the shift to the m=0 position).
+    
+    # The length of the alm tensor up to degree l-1 is l^2.
+    # The m=0 position is then at index l^2 + l.
+    
+    # We want indices: 0^2+0, 1^2+1, 2^2+2, ..., L_max^2 + L_max
+    
+    # Create the tensor of degrees l: [0, 1, 2, ..., L_max]
+    l_range = torch.arange(L_max + 1, device=al.device)
+    
+    # Calculate the m=0 index for each l
+    m_zero_indices = l_range ** 2 + l_range
+
+    # 5. Assign the al values to these m=0 indices in the alm tensor
+    alm[m_zero_indices] = al
+
+    return alm
 
 # --- Legacy Function (For Comparison) ---
-def _legacy_expand_f_l_to_lm(f_l: torch.Tensor, L_max: int) -> torch.Tensor:
+def _legacy_expand_al_to_lm(al: torch.Tensor, L_max: int) -> torch.Tensor:
     l_index_np = []
     for l in range(L_max + 1):
         for m in range(-l, l + 1):
             l_index_np.append(l)
-    idx_l = torch.tensor(l_index_np, dtype=torch.long, device=f_l.device)
-    return f_l[idx_l]
+    idx_l = torch.tensor(l_index_np, dtype=torch.long, device=al.device)
+    return al[idx_l]
 
 # ==============================
 # Debug / test
