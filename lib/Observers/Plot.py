@@ -30,7 +30,7 @@ class Plot3D(Observer):
     ELEV = 20                # camera elevation
     # ------------------------------------
 
-    def __init__(self, every: int = 50, output_directory = OUTPUT):
+    def __init__(self, every: int = 50, output_directory = OUTPUT, vebrose: int = 0):
         self.every = every
         self.initial_energy = 0.
 
@@ -40,13 +40,14 @@ class Plot3D(Observer):
         self.ax = None
 
         self.output_dir = output_directory
+        self.vebrose = vebrose
 
     def on_setup(self, initial_state: FieldState) -> None:
         self.initial_energy = float((initial_state.field).sum().detach().cpu().numpy())
         self.fig = plt.figure(figsize=(6, 6))
         self.ax = self.fig.add_subplot(111, projection="3d")
 
-        print("Start prop")
+        if self.vebrose: print("Start prop")
         self.azim0 = 45  # starting azimuth
 
         # Initial step
@@ -130,8 +131,8 @@ class Plot3D(Observer):
         gif_path = os.path.join(self.output_dir, "photon_flux_propagation_3d.gif")
         imageio.mimsave(gif_path, self.frames, duration=0.6)
 
-        print("Finish")
-        print(gif_path)
+        if self.vebrose: print("Finish")
+        if self.vebrose: print(gif_path)
 
 
 class PlotMollviewInPoint(Observer):
@@ -139,7 +140,9 @@ class PlotMollviewInPoint(Observer):
     Plot mollview projection in one certain space bin (point)
     """
 
-    def __init__(self, space_point_idxs: List[int], Angle, every: int = 50, output_directory = OUTPUT):
+    def __init__(self, 
+            space_point_idxs: List[int], Angle, every: int = 50, 
+            output_directory = OUTPUT, vebrose: int = 0):
         self.every = every
         self.initial_energy = 0.
 
@@ -154,6 +157,7 @@ class PlotMollviewInPoint(Observer):
         self.ax = None
 
         self.output_dir = output_directory
+        self.vebrose = vebrose
 
     def __mollview(self, values: torch.Tensor):
         # Accumulate values into pixels
@@ -196,7 +200,7 @@ class PlotMollviewInPoint(Observer):
         # NSIDE must be a power of 2 for many healpy features (optional but recommended)
         nside = 2**round(np.log2(target_nside))
         self.npix = hp.nside2npix(nside)        
-        print(f"Selected NSIDE: {nside} (Total pixels: {self.npix})")
+        if self.vebrose: print(f"Selected NSIDE: {nside} (Total pixels: {self.npix})")
 
         thetas, phis = self.Angle.get_nodes_angles()
         pixel_indices = hp.ang2pix(nside, thetas.detach().cpu().numpy(), phis.detach().cpu().numpy())
@@ -211,7 +215,7 @@ class PlotMollviewInPoint(Observer):
         # Plots
         self.fig = plt.figure(figsize=(10, 9))
 
-        print("Start prop")
+        if self.vebrose: print("Start prop")
 
         # Initial step
         self.on_step_end(-1, initial_state, True)
@@ -259,8 +263,8 @@ class PlotMollviewInPoint(Observer):
         gif_path = os.path.join(self.output_dir, "photon_flux_propagation_3d.gif")
         imageio.mimsave(gif_path, self.frames, duration=0.6)
 
-        print("Finish")
-        print(gif_path)
+        if self.vebrose: print("Finish")
+        if self.vebrose: print(gif_path)
 
 class EnergyPlotter(Observer):
     def __init__(self, n_steps: int, every: int = 50, output_directory = OUTPUT):

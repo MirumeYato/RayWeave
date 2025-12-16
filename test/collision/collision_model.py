@@ -32,7 +32,10 @@ def make_collision_model(
     # Each observer impacts on calculation time. Make every parameter big as possible
     if obs_type is None: observers = [] 
     elif obs_type == 'plotting': observers = [PlotMollviewInPoint([c,c,c], Quadrature, every=1)]
-    else: observers = [EnergyLogger(every=n_steps//10), PlotMollviewInPoint([c,c,c], Quadrature, every=n_steps//10), EnergyPlotter(n_steps, every=n_steps//100)]
+    else: observers = [
+        EnergyLogger(every=n_steps//10), 
+        PlotMollviewInPoint([c,c,c], Quadrature, every=n_steps//10), 
+        EnergyPlotter(n_steps, every=n_steps//100)]
     return StrangEngine(steps, n_steps, dt, observers,
                     device=device, compile_fused=False, use_cuda_graph=False)
 

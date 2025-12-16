@@ -70,7 +70,8 @@ class StrangEngine(Engine):
                 device: str = "cuda",
                 compile_fused: bool = True,
                 use_cuda_graph: bool = False,
-                dt_provider: Optional[Callable[[int, FieldState], float]] = None,
+                vebrose: int = 0
+                # dt_provider: Optional[Callable[[int, FieldState], float]] = None,
                 )-> None:
         self.steps = list(steps)
         self.num_time_steps = int(num_time_steps)
@@ -79,7 +80,8 @@ class StrangEngine(Engine):
         self.observers = list(observers or [])
         self.compile_fused = bool(compile_fused)
         self.use_cuda_graph = bool(use_cuda_graph)
-        self.dt_provider = dt_provider
+        self.vebrose = vebrose
+        # self.dt_provider = dt_provider
 
         self._compiled_step: Optional[Callable[[FieldState], FieldState]] = None
         self._cuda_graph: Optional[torch.cuda.CUDAGraph] = None  # for graph replay
@@ -109,7 +111,7 @@ class StrangEngine(Engine):
     # ---- main run --------------------------------------------------------------
     # @performance
     def __inner_run_graph(self, state: FieldState, step_fn: Callable[[FieldState], FieldState]) -> FieldState:
-        print("[DEBUG]: Run with CUDA Graph")
+        if self.vebrose: print("[DEBUG]: Run with CUDA Graph")
         g = torch.cuda.CUDAGraph()
         torch.cuda.synchronize()
 
@@ -128,7 +130,7 @@ class StrangEngine(Engine):
 
     # @performance
     def __inner_run_simple(self, state: FieldState, step_fn: Callable[[FieldState], FieldState]) -> FieldState:
-        print("[DEBUG]: Run (eager/compiled, no CUDA Graph)")
+        if self.vebrose: print("[DEBUG]: Run (eager/compiled, no CUDA Graph)")
         for i in range(self.num_time_steps):
             # if self.dt_provider is not None:
             #     state.dt = float(self.dt_provider(i, state))
@@ -138,8 +140,9 @@ class StrangEngine(Engine):
             for ob in self.observers: ob.on_step_end(i, state)
 
     def __inner_run_direct(self, state: FieldState) -> FieldState:
-        print("[DEBUG]: Run (eager/compiled, no CUDA Graph)")
-        print("[ERROR]: For this time does not work. Need fix")
+        if self.vebrose: 
+            print("[DEBUG]: Run (eager/compiled, no CUDA Graph)")
+            print("[ERROR]: For this time does not work. Need fix")
         # for i in range(self.num_time_steps):
         #     if self.dt_provider is not None:
         #         state.dt = float(self.dt_provider(i, state))
