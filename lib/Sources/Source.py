@@ -4,15 +4,39 @@ from abc import ABC, abstractmethod
 # from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import numpy as np
+import torch
+
+from lib.grid.Angle import Angle
+from lib.tools.func_HenyeyGreenshtein import map_HenyeyGreenstein
 
 # from lib.data import ParticleState
 
 class Source(ABC):
     """Initializes (or injects) particles into the Grid at t0."""
-
+    pass
     # @abstractmethod
     # def emit(self, t0: float) -> Sequence[ParticleState]:
     #     """Return the particles to insert at time t0."""
+
+def make_hg_source(Angle: Angle, device, N = 1, c = 0, g = 0.1):
+    Q = Angle.num_bins
+    field_tensor = torch.zeros((Q, N, N, N), dtype=torch.complex128, device=device)
+    
+    # Adding sources
+    thetas, __ = Angle.get_nodes_angles()
+    field_tensor[:, c, c, c] = map_HenyeyGreenstein(g, thetas)
+
+    return field_tensor
+
+def make_point_source(Angle: Angle, device, N = 1, c = 0, c2 = 0):
+    Q = Angle.num_bins
+    field_tensor = torch.zeros((Q, N, N, N), dtype=torch.complex128, device=device)
+    
+    # Adding sources
+    field_tensor[c2, c, c, c] = 1.0 # point-like source in the middle
+
+    return field_tensor
+
 
 # =====================================
 # needs refactoring
