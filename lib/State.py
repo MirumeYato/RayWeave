@@ -9,6 +9,7 @@ import torch
 # -----------------------------
 # Core Data Structures
 # -----------------------------
+Field = torch.Tensor
 
 @dataclass
 class FieldState:
@@ -26,8 +27,7 @@ class FieldState:
         Arbitrary metadata. Keep values small; observers can persist the heavy
         stuff out-of-band.
     """
-
-    field: torch.Tensor
+    field: Field
     dt: float
     meta: Dict[str, Any]
 
