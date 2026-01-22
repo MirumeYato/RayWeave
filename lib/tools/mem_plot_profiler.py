@@ -27,7 +27,7 @@ class EventLogger:
             print("Warning: EventLogger not initialized. Event ignored.")
 
 # The core decorator function (replacing the previous one)
-def profile_memory_usage(interval=0.1, plot=True, title_suffix=""):
+def profile_memory_usage(interval=0.1, plot=True, title_suffix="", verbose = 0):
     """
     Decorator to trace CPU and GPU memory usage.
     
@@ -38,6 +38,8 @@ def profile_memory_usage(interval=0.1, plot=True, title_suffix=""):
     Attaches a .profiler_data attribute to the decorated function containing:
     { 'timestamps': [], 'cpu': [], 'gpu': [] }
     """
+    if not verbose: return lambda func: func
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
