@@ -27,11 +27,11 @@ class Plot3D(Observer):
     MAX_POINTS = 150_000     # cap number of plotted voxels per frame
     POINT_SIZE = 2           # matplotlib scatter point size
     ROTATE_PER_STEP = 0     # degrees of azimuth change per frame
-    ELEV = 20                # camera elevation
+    ELEV = 90                # camera elevation
     # ------------------------------------
 
-    def __init__(self, every: int = 50, output_directory = OUTPUT, vebrose: int = 0):
-        self.every = every
+    def __init__(self, every: int = 50, output_directory = OUTPUT, verbose: int = 0):
+        super().__init__(every=every)
         self.initial_energy = 0.
 
         # Plot values
@@ -40,15 +40,15 @@ class Plot3D(Observer):
         self.ax = None
 
         self.output_dir = output_directory
-        self.vebrose = vebrose
+        self.verbose = verbose
 
     def on_setup(self, initial_state: FieldState) -> None:
         self.initial_energy = float((initial_state.field.real).sum().detach().cpu().numpy())
         self.fig = plt.figure(figsize=(6, 6))
         self.ax = self.fig.add_subplot(111, projection="3d")
 
-        if self.vebrose: print("Start prop")
-        self.azim0 = 45  # starting azimuth
+        if self.verbose: print("Start prop")
+        self.azim0 = -90  # starting azimuth
 
         # Initial step
         self.on_step_end(-1, initial_state, True)
@@ -99,7 +99,7 @@ class Plot3D(Observer):
             self.ax.set_zlim(0, N - 1)
             self.ax.set_box_aspect((1, 1, 1))
             self.ax.view_init(elev=self.ELEV, azim=self.azim0 + step_idx * self.ROTATE_PER_STEP)
-            self.ax.set_xticks([]); self.ax.set_yticks([]); self.ax.set_zticks([])
+            self.ax.set_xticks(np.arange(N-1)); self.ax.set_yticks(np.arange(N-1)); self.ax.set_zticks(np.arange(N-1))
             self.ax.set_xlabel("x"); self.ax.set_ylabel("y"); self.ax.set_zlabel("z")
 
             # Add global text annotation (use figure coordinates instead of axes)
@@ -133,8 +133,8 @@ class Plot3D(Observer):
         gif_path = os.path.join(self.output_dir, "photon_flux_propagation_3d.gif")
         imageio.mimsave(gif_path, self.frames, duration=0.6)
 
-        if self.vebrose: print("Finish")
-        if self.vebrose: print(gif_path)
+        if self.verbose: print("Finish")
+        if self.verbose: print(gif_path)
 
 
 class PlotMollviewInPoint(Observer):
@@ -144,8 +144,8 @@ class PlotMollviewInPoint(Observer):
 
     def __init__(self, 
             space_point_idxs: List[int], Angle, every: int = 50, 
-            output_directory = OUTPUT, vebrose: int = 0):
-        self.every = every
+            output_directory = OUTPUT, verbose: int = 0):
+        super().__init__(every=every)
         self.initial_energy = 0.
 
         self.x_id = space_point_idxs[0]
@@ -159,7 +159,7 @@ class PlotMollviewInPoint(Observer):
         self.ax = None
 
         self.output_dir = output_directory
-        self.vebrose = vebrose
+        self.verbose = verbose
 
     def __mollview(self, values: torch.Tensor):
         # Accumulate values into pixels
@@ -202,7 +202,7 @@ class PlotMollviewInPoint(Observer):
         # NSIDE must be a power of 2 for many healpy features (optional but recommended)
         nside = 2**round(np.log2(target_nside))
         self.npix = hp.nside2npix(nside)        
-        if self.vebrose: print(f"Selected NSIDE: {nside} (Total pixels: {self.npix})")
+        if self.verbose: print(f"Selected NSIDE: {nside} (Total pixels: {self.npix})")
 
         thetas, phis = self.Angle.get_nodes_angles()
         pixel_indices = hp.ang2pix(nside, thetas.detach().cpu().numpy(), phis.detach().cpu().numpy())
@@ -217,7 +217,7 @@ class PlotMollviewInPoint(Observer):
         # Plots
         self.fig = plt.figure(figsize=(10, 9))
 
-        if self.vebrose: print("Start prop")
+        if self.verbose: print("Start prop")
 
         # Initial step
         self.on_step_end(-1, initial_state, True)
@@ -265,12 +265,12 @@ class PlotMollviewInPoint(Observer):
         gif_path = os.path.join(self.output_dir, "photon_flux_propagation_3d.gif")
         imageio.mimsave(gif_path, self.frames, duration=0.6)
 
-        if self.vebrose: print("Finish")
-        if self.vebrose: print(gif_path)
+        if self.verbose: print("Finish")
+        if self.verbose: print(gif_path)
 
 class EnergyPlotter(Observer):
     def __init__(self, n_steps: int, every: int = 50, output_directory = OUTPUT):
-        self.every = every
+        super().__init__(every=every)
         self.output_dir = output_directory
         self.total = np.zeros(n_steps // every)
         
