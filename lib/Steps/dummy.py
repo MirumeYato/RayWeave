@@ -1,12 +1,12 @@
 from .Step import Step
-from lib.State import FieldState
+from lib.State import FieldState, Field
 
 class DummyPropagate(Step):
     """
     Do nothing. Just push forward
     """
-    def __init__(self, device = "cpu"):
-        self.device = device # do not forget to initialize device here if you want to use specific one
+    def __init__(self, device = "cpu", verbose = 0):        
+        super().__init__(device, verbose)
 
-    def forward(self, state: FieldState) -> FieldState:
-        return FieldState(state.field, state.dt, state.meta)
+    def forward(self, field: Field) -> Field:
+        return field+1. # field.add_(1.)

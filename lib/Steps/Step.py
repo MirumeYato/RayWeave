@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 # from lib.physics import Grid
-from lib.State import FieldState # ParticleState
+from lib.State import FieldState, Field # ParticleState
 
 class Step(ABC):
     """A single split-operator (e.g., drift, collision, source, etc.).
@@ -19,21 +19,32 @@ class Step(ABC):
 
     name: str = "Step"
 
+    def __init__(self, device = "cpu", verbose = 0):
+        # Grid for interpolation
+        self.dt = None
+        self.verbose = verbose
+        self.device = device
+
     def setup(self, state: FieldState) -> None:
         """Allocate reusable buffers or precompute constants (on correct device)."""
+        self.setup_dt(state)
         pass
 
     @abstractmethod
-    def forward(self, state: FieldState) -> FieldState:
+    def forward(self, field: Field) -> Field:
         """Pure transform: no I/O, no prints, no device syncs if possible."""
         ...
 
-    def __call__(self, state: FieldState) -> FieldState:
-        return self.forward(state)
+    def __call__(self, field: Field) -> Field:
+        return self.forward(field)
 
     def teardown(self) -> None:
         """Free big buffers; flush files, etc."""
-        pass
+        pass    
+    
+    def setup_dt(self, state: FieldState) -> None: 
+        """Store delta t (amount of time step in some units) from FieldState"""
+        self.dt = float(state.dt)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"

@@ -18,6 +18,9 @@ class Source(ABC):
     # def emit(self, t0: float) -> Sequence[ParticleState]:
     #     """Return the particles to insert at time t0."""
 
+def make_dummy_source(Q, N, device='cpu'):
+    return torch.zeros((Q, N, N, N), device=device)
+
 def make_hg_source(Angle: Angle, device, N = 1, c = 0, g = 0.1):
     Q = Angle.num_bins
     field_tensor = torch.zeros((Q, N, N, N), dtype=torch.complex128, device=device)
