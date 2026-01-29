@@ -11,6 +11,13 @@ class Observer(ABC):
         self.every = every
 
     def sync_every(self, chunk_size: int = None) -> None:
+        """
+        Method for syncronize counter "every" with chunk_size. 
+        In chunk mode we can not update state in non multiple to chink_size iteration.
+        
+        :param chunk_size: Number of iterations, that are compiled without observers.
+        :type chunk_size: int
+        """
         if not chunk_size: 
             if self.every % chunk_size and self.every > chunk_size: 
                 self.every = self.every - self.every % chunk_size
