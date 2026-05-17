@@ -4,7 +4,7 @@ from typing import List
 import os
 
 from lib import Observer, PATH
-from lib.State import FieldState
+from lib.State import FieldState, Field
 from lib.grid.Angle import Angle
 
 import torch
@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa
 from matplotlib import cm
 
-OUTPUT = os.path.abspath(os.path.join(PATH, 'output'))
+OUTPUT = os.path.abspath(os.path.join(PATH, 'output', 'debug'))
 
 class Plot3D(Observer):
     """
@@ -39,11 +39,15 @@ class Plot3D(Observer):
         self.fig = None
         self.ax = None
 
+        self.dt = None
+
         self.output_dir = output_directory
         self.verbose = verbose
 
     def on_setup(self, initial_state: FieldState) -> None:
         self.initial_energy = float((initial_state.field.real).sum().detach().cpu().numpy())
+        self.dt = initial_state.dt
+        
         self.fig = plt.figure(figsize=(6, 6))
         self.ax = self.fig.add_subplot(111, projection="3d")
 
@@ -51,13 +55,13 @@ class Plot3D(Observer):
         self.azim0 = -90  # starting azimuth
 
         # Initial step
-        self.on_step_end(-1, initial_state, True)
+        self.on_step_end(-1, initial_state.field, True)
 
-    def on_step_end(self, step_idx: int, state: FieldState, initial_flag = False) -> None:
+    def on_step_end(self, step_idx: int, field: Field, initial_flag = False) -> None:
         if step_idx % self.every == 0 or initial_flag:
             step_idx +=1 # We had zero step on setup. 
             
-            vol = (state.field.real).sum(dim=0).detach().cpu().numpy()         # numpy [N,N,N]
+            vol = (field.real).sum(dim=0).detach().cpu().numpy()         # numpy [N,N,N]
 
             # Select voxels to plot (threshold + optional subsample)
             vmax = self.initial_energy/200#float(vol.max())
@@ -99,7 +103,7 @@ class Plot3D(Observer):
             self.ax.set_zlim(0, N - 1)
             self.ax.set_box_aspect((1, 1, 1))
             self.ax.view_init(elev=self.ELEV, azim=self.azim0 + step_idx * self.ROTATE_PER_STEP)
-            self.ax.set_xticks(np.arange(N-1)); self.ax.set_yticks(np.arange(N-1)); self.ax.set_zticks(np.arange(N-1))
+            # self.ax.set_xticks(np.arange(N-1)); self.ax.set_yticks(np.arange(N-1)); self.ax.set_zticks(np.arange(N-1))
             self.ax.set_xlabel("x"); self.ax.set_ylabel("y"); self.ax.set_zlabel("z")
 
             # Add global text annotation (use figure coordinates instead of axes)
@@ -118,7 +122,7 @@ class Plot3D(Observer):
                 ha="left", va="top",
                 bbox=dict(facecolor="white", edgecolor="none", alpha=0.7, pad=3),
             )        
-            self.ax.set_title(f"Photon flux 3D — step {step_idx} (t={step_idx*state.dt:.1f})") 
+            self.ax.set_title(f"Photon flux 3D — step {step_idx} (t={step_idx*self.dt:.1f})") 
             # TODO: what if dt is not constant? (look more same todo by "dt!=const")
             #       We need to predefine array of dt's and just call needed element by 'step_idx'
 
@@ -144,7 +148,8 @@ class PlotMollviewInPoint(Observer):
 
     def __init__(self, 
             space_point_idxs: List[int], Angle, every: int = 50, 
-            output_directory = OUTPUT, verbose: int = 0):
+            output_directory = OUTPUT, verbose: int = 0,
+            filename: str = "photon_flux_propagation_3d.gif"):
         super().__init__(every=every)
         self.initial_energy = 0.
 
@@ -160,6 +165,7 @@ class PlotMollviewInPoint(Observer):
 
         self.output_dir = output_directory
         self.verbose = verbose
+        self.filename = filename
 
     def __mollview(self, values: torch.Tensor):
         # Accumulate values into pixels
@@ -175,7 +181,6 @@ class PlotMollviewInPoint(Observer):
         # ---------------------------------------------------------
         # 4. Normalize (Average) and Handle Empty Pixels
         # ---------------------------------------------------------
-        
         # Avoid division by zero
         mask_nonzero = self.healpix_map_count > 0
         
@@ -186,7 +191,9 @@ class PlotMollviewInPoint(Observer):
         final_map[mask_nonzero] = self.healpix_map_sum[mask_nonzero] / self.healpix_map_count[mask_nonzero]
 
         # Convert to numpy for healpy visualization
-        final_map_np = final_map.detach().cpu().numpy()
+        thresh = torch.nn.Threshold(0,  1e-10)
+        final_map_np = thresh(final_map).detach().cpu().numpy()
+        # final_map_np = final_map.detach().cpu().numpy()
 
         # Optional: Fill holes (simple neighbor averaging) if N was small compared to Npix
         # final_map_np = hp.sphtfunc.smoothing(final_map_np, fwhm=0.0) # or custom interpolation
@@ -220,27 +227,32 @@ class PlotMollviewInPoint(Observer):
         if self.verbose: print("Start prop")
 
         # Initial step
-        self.on_step_end(-1, initial_state, True)
+        self.on_step_end(-1, initial_state.field, True)
 
-    def on_step_end(self, step_idx: int, state: FieldState, initial_flag = False) -> None:
+    def on_step_end(self, step_idx: int, field: Field, initial_flag = False) -> None:
         if step_idx % self.every == 0 or initial_flag:
             step_idx +=1 # We had zero step on setup. 
             
-            vol = (state.field.real)[:, self.x_id, self.y_id, self.z_id]          # shape [B]
+            vol = (field.real)[:, self.x_id, self.y_id, self.z_id]          # shape [B]
 
             mapped_vol = self.__mollview(vol)
+            my_ticks = [1e-3, 1e-2, 1e-1, 1]
 
             # Upper map
             hp.mollview(
-                mapped_vol,
+                (mapped_vol),
                 fig=self.fig.number,
                 sub=(2, 1, 1),
                 title=f"Step {step_idx} — voxel (c,c,c)",
-                norm=None,
+                norm='log',
                 cbar=True,
-                # min=0,
+                min=1e-3,
                 max=1
             )
+
+            fig = plt.gcf()
+            cb_ax = fig.get_axes()[-1]
+            cb_ax.set_xticks(my_ticks)
 
             # Add global text annotation (use figure coordinates instead of axes)
             sum_ratio = np.abs(1 - float(vol.sum().detach().cpu().numpy()) / float(self.initial_energy))
@@ -262,7 +274,7 @@ class PlotMollviewInPoint(Observer):
     def on_teardown(self) -> None: 
         plt.close(self.fig)
 
-        gif_path = os.path.join(self.output_dir, "photon_flux_propagation_3d.gif")
+        gif_path = os.path.join(self.output_dir, self.filename)
         imageio.mimsave(gif_path, self.frames, duration=0.6)
 
         if self.verbose: print("Finish")
@@ -272,12 +284,18 @@ class EnergyPlotter(Observer):
     def __init__(self, n_steps: int, every: int = 50, output_directory = OUTPUT):
         super().__init__(every=every)
         self.output_dir = output_directory
-        self.total = np.zeros(n_steps // every)
+
+        self.n_steps = n_steps
+
+    def on_setup(self, state):
+        self.total = np.zeros(self.n_steps // self.every + 1)
+        self.on_step_end(0, state.field)
+        pass
         
-    def on_step_end(self, step_idx: int, state: FieldState) -> None:
+    def on_step_end(self, step_idx: int, field: Field) -> None:
         if step_idx % self.every == 0:
             # cheap summary; no sync if possible
-            self.total[step_idx // self.every] = torch.relu(state.field.real).sum().detach().item()
+            self.total[step_idx // self.every] = field.real.sum().detach().item()
 
     def on_teardown(self) -> None: 
         plt.figure(figsize=(8, 5))
