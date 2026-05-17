@@ -27,10 +27,12 @@ class Plot3D(Observer):
     MAX_POINTS = 150_000     # cap number of plotted voxels per frame
     POINT_SIZE = 2           # matplotlib scatter point size
     ROTATE_PER_STEP = 0     # degrees of azimuth change per frame
-    ELEV = 30                # camera elevation
     # ------------------------------------
 
-    def __init__(self, every: int = 50, output_directory = OUTPUT, verbose: int = 0):
+    def __init__(self, every: int = 50, output_directory = OUTPUT, 
+                 elev: int = 30, # camera elevation
+                 azimut: int = -150, # starting azimuth
+                 verbose: int = 0):
         super().__init__(every=every)
         self.initial_energy = 0.
 
@@ -40,7 +42,8 @@ class Plot3D(Observer):
         self.ax = None
 
         self.dt = None
-
+        self.ELEV = elev
+        self.azim0 = azimut
         self.output_dir = output_directory
         self.verbose = verbose
 
@@ -52,7 +55,6 @@ class Plot3D(Observer):
         self.ax = self.fig.add_subplot(111, projection="3d")
 
         if self.verbose: print("Start prop")
-        self.azim0 = -150  # starting azimuth
 
         # Initial step
         self.on_step_end(-1, initial_state.field, True)

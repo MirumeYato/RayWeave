@@ -21,14 +21,33 @@ class Source(ABC):
 def make_dummy_source(Q, N, device='cpu'):
     return torch.zeros((Q, N, N, N), device=device)
 
-def make_hg_source(Angle: Angle, device, N = 1, c = 0, g = 0.1):
+def make_hg_source(Angle: Angle, device, N = 1, c = 0, c2 = 0, g = 0.1):
     Q = Angle.num_bins
     field_tensor = torch.zeros((Q, N, N, N), dtype=torch.complex128, device=device)
     
-    # Adding sources
-    thetas, __ = Angle.get_nodes_angles()
-    # print(map_HenyeyGreenstein(g, thetas).sum())
-    field_tensor[:, c, c, c] = map_HenyeyGreenstein(g, thetas) / map_HenyeyGreenstein(g, thetas).sum()
+    # 1. Get the full grids of angles
+    # Assuming get_nodes_angles() returns full arrays/tensors for all bins
+    thetas, phis = Angle.get_nodes_angles() 
+    
+    # 2. Extract the target direction where the max should be
+    theta_target = thetas[c2]
+    phi_target = phis[c2]
+    
+    # 3. Calculate the relative angle (alpha) between all directions and the target direction
+    # Using the spherical law of cosines: cos(α) = cos(θ1)cos(θ2) + sin(θ1)sin(θ2)cos(φ1 - φ2)
+    cos_alpha = (torch.cos(thetas) * torch.cos(theta_target) + 
+                 torch.sin(thetas) * torch.sin(theta_target) * torch.cos(phis - phi_target))
+    
+    # Clamp cos_alpha to avoid any floating-point edge cases outside [-1, 1] before acos
+    cos_alpha = torch.clamp(cos_alpha, -1.0, 1.0)
+    relative_thetas = torch.acos(cos_alpha)
+    
+    # 4. Pass the relative angles to the HG mapping function
+    # This guarantees that at index c2, relative_theta is 0, yielding the maximum HG value.
+    hg_values = map_HenyeyGreenstein(g, relative_thetas)
+    
+    # 5. Normalize and assign to the source spatial position [c, c, c]
+    field_tensor[:, c, c, c] = hg_values / hg_values.sum()
 
     return field_tensor
 
