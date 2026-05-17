@@ -18,12 +18,14 @@ class Observer(ABC):
         :param chunk_size: Number of iterations, that are compiled without observers.
         :type chunk_size: int
         """
-        if not chunk_size: 
-            if self.every % chunk_size and self.every > chunk_size: 
+        if chunk_size: 
+            if self.every < chunk_size:
+                self.every = chunk_size
+            elif self.every % chunk_size: 
                 self.every = self.every - self.every % chunk_size
         pass
 
     def on_setup(self, state: FieldState) -> None: pass
     @abstractmethod
-    def on_step_end(self, step_idx: int, field: Field) -> None: pass
+    def on_step_end(self, step_idx: int, field: Field, chunk_size: int) -> None: pass
     def on_teardown(self) -> None: pass

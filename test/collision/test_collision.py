@@ -114,13 +114,12 @@ def get_angular_binnings():
     # but for fast tests we want smaller sizes. 
     # ~240 bins for t-design, nside=4 -> 192 bins for healpix
     return [
-        (Collision, QuadratureTdesign, 10083, 80),
-        # (QuadratureHEALPix, 29, 80),
-        # (Collision, QuadratureTdesign, 1014, 25),
+        (Collision, QuadratureTdesign, 10083, 70),
+        (Collision, QuadratureTdesign, 1014, 22),        
+        (Collision, QuadratureTdesign, 240, 10),
         (CollisionHP, QuadratureHEALPix, 32, 90),
-        # (QuadratureHEALPix, 9, 25),
-        # (QuadratureTdesign, 240, 10),
-        # (QuadratureHEALPix, 4, 10)
+        (CollisionHP, QuadratureHEALPix, 9, 25),
+        (CollisionHP, QuadratureHEALPix, 4, 10)
     ]
 
 @pytest.fixture(scope="module")

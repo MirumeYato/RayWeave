@@ -75,10 +75,10 @@ class LoopEngine(Engine):
         if self.verbose: 
             print("[DEBUG]: Run (dummy cycles)")
             # log_event("Start", **kwargs)
-        for i in trange(self.num_time_steps, desc = "LoopEngine simulation:"):
+        for i in trange(self.num_time_steps, disable=not self.verbose, desc = "LoopEngine Simulating"):
             for s in self.steps: 
                 field = s.forward(field)
-            for ob in self.observers: ob.on_step_end(i, field)
+            for ob in self.observers: ob.on_step_end(i+1, field)
         # if self.verbose: log_event("Fin", **kwargs)
         return field
 
@@ -91,7 +91,9 @@ class LoopEngine(Engine):
             state = FieldState(field, float(self.dt), dict(init_state.meta))
 
             # -- Setup hooks & steps --
-            for s in self.steps: s.setup(state)
+            for s in self.steps: 
+                s.setup_dt(state)
+                s.setup(state)
             for ob in self.observers: ob.on_setup(state)
 
             # -- Main sim,ulation loop --
@@ -206,7 +208,9 @@ class TorchEngine(LoopEngine):
             state = FieldState(f, float(self.dt), dict(init_state.meta))
 
             # 2. Setup
-            for s in self.steps: s.setup(state)
+            for s in self.steps: 
+                s.setup_dt(state)
+                s.setup(state)
             for ob in self.observers: 
                 ob.sync_every(self.chunk_size)
                 ob.on_setup(state)
@@ -235,7 +239,7 @@ class TorchEngine(LoopEngine):
             current_time_step = 0
             
             # We iterate over blocks, not individual steps
-            pbar = tqdm(total=total_steps, disable=not self.verbose, desc="Simulating")
+            pbar = tqdm(total=total_steps, disable=not self.verbose, desc="TorchEngine Simulating")
             
             # log_event("Start", **kwargs)
             for _ in range(num_blocks):

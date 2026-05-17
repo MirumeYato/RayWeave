@@ -27,7 +27,8 @@ def make_hg_source(Angle: Angle, device, N = 1, c = 0, g = 0.1):
     
     # Adding sources
     thetas, __ = Angle.get_nodes_angles()
-    field_tensor[:, c, c, c] = map_HenyeyGreenstein(g, thetas)
+    # print(map_HenyeyGreenstein(g, thetas).sum())
+    field_tensor[:, c, c, c] = map_HenyeyGreenstein(g, thetas) / map_HenyeyGreenstein(g, thetas).sum()
 
     return field_tensor
 

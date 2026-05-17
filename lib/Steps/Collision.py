@@ -62,7 +62,7 @@ class Collision(Step):
         lambda_l = -(self.mu_absorb + self.mu_scatter) + self.mu_scatter * g_l
         
         # Using full dt, avoiding fixed fractional Strang Splitting hardcodes
-        exp_lm = torch.exp(lambda_l * self.dt) # {L+1} 
+        exp_lm = torch.exp(lambda_l * self.dt / 2.0) # {L+1} 
         self.exp_lm = expand_lm(exp_lm, Lmax) # {(L+1)^2}
 
 
@@ -137,7 +137,7 @@ class CollisionHP(Step):
 
         # Pre-calculate solution for Henyey-Greenstein's coefficients evolution.
         lambda_l = -(self.mu_absorb + self.mu_scatter) + self.mu_scatter * (self.g ** l_arr)
-        self.exp_lm = np.exp(lambda_l * self.dt)
+        self.exp_lm = np.exp(lambda_l * self.dt / 2.0)
 
     def forward(self, field: Field, **kwargs) -> Field:
         # A_pv = sum_q  w * I_qv * conj(Y_qp)
@@ -147,7 +147,7 @@ class CollisionHP(Step):
         alm_scattered = self.exp_lm * alm # A_pv * exp_lm[:, None, None, None] # TODO: what if dt is not constant? Need adding possibility to reinit self.exp_lm
 
         # just summation for lm. No need quadrature
-        scattered_field = field
+        scattered_field = field.clone()
         scattered_field[:, 0, 0, 0] = torch.tensor(hp.alm2map(alm_scattered, nside=self.n_side, lmax=self.Lmax, verbose=False), device=self.device, dtype=self.dtype_complex)
         
         return scattered_field

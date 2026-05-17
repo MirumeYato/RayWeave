@@ -7,7 +7,7 @@ import numpy as np
 
 # Models pakages
 from lib import Step
-from lib.Strang.Engine import StrangEngine
+from lib.Strang.Engine import LoopEngine as StrangEngine
 
 # Custom Observers and Steps
 from lib.Observers.Loggers import EnergyLogger
@@ -47,7 +47,8 @@ def get_analytical_solution(
         device) -> torch.Tensor:
     J = initial_field.sum().abs().detach().cpu().numpy() # intensity in point like delta t source.
 
-    g_l = alm_HenyeyGreenstein(g=g, L_max=Lmax, device=device).to(dtype=initial_field.dtype) # {L+1}
+    l_arr = torch.arange(Lmax + 1, device=device, dtype=torch.float64)
+    g_l = (g ** l_arr).to(dtype=initial_field.dtype) # {L+1}
     lambda_l = speed * (-(mu_absorb + mu_scatter) + mu_scatter * g_l) # {L+1}
     exp_lm = torch.exp(lambda_l * np.complex128(dt / 2.0)) # {L+1}
     exp_lm = expand_lm(exp_lm, Lmax) # {(L+1)^2}

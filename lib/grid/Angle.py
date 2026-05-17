@@ -23,6 +23,12 @@ class  Angle(ABC):
     
     @abstractmethod
     def get_nodes_coord(self) -> torch.Tensor:
+        """
+        Returns coordinates of grid's points (nodes). 
+        This is a array of coordinates for each grid bin, so shpae is [bin_num, spatial_dim_num]
+
+        Also such arrays of coodinates have same meaning as direction vector for each node.
+        """
         pass
 
     @abstractmethod
@@ -33,7 +39,7 @@ class  Angle(ABC):
     def get_weights(self) -> torch.Tensor | float:
         pass
 
-    def get_spherical_harmonics(self, Lmax, dtype=torch.complex128) -> tuple[torch.Tensor]:
+    def get_spherical_harmonics(self, Lmax: int, dtype=torch.complex128) -> tuple[torch.Tensor]:
         theta, phi = self.get_nodes_angles()
 
         Y = compute_SH(theta=theta, phi=phi, L_max=Lmax, device=self.device, dtype=dtype)

@@ -28,7 +28,7 @@ import torch
 # import numpy as np
 from tqdm import trange
 
-from .Engine import StrangEngine as SEngine
+from .Engine import LoopEngine as SEngine
 from lib import Step, Source, Observer # Grid
 from lib.State import FieldState
 
