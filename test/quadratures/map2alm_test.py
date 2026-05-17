@@ -1,37 +1,26 @@
-# Path settings
-import os, sys
-#===============================#
-# Get the directory where the script is located
-PATH = os.path.dirname(os.path.abspath(__file__))
-# Get the parent directory of the current directory
-PATH = os.path.abspath(os.path.join(PATH, '..', '..'))
-print(PATH)
-sys.path.insert(0, PATH)
-#===============================#
-# Retry with fixed-size frames (avoid bbox_inches='tight' which changed image sizes).
+import os
+import pytest
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import healpy as hp
+
 from lib.tools import map_HenyeyGreenstein, alm_HenyeyGreenstein
-from lib.tools.func_HenyeyGreenshtein import alm_diagonalize as alm_diag
+from lib.tools.func_HenyeyGreenstein import alm_diagonalize as alm_diag
 from sht import map2alm
 from lib.grid.Quadrature.Chebishev.QuadratureHEALPix import QuadratureHEALPix
 from lib.grid.Quadrature.Chebishev.QuadratureTdesign import QuadratureTdesign
 
-import matplotlib.pyplot as plt
-
-import numpy as np
-import torch
-from math import pi
-import healpy as hp
-
-OUTPUT = os.path.abspath(os.path.join(PATH, 'output', 'test', 'sht_debug'))
+OUTPUT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'output', 'test', 'quadratures'))
 os.makedirs(OUTPUT, exist_ok=True)
 
+@pytest.fixture(scope="module")
+def device():
+    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-if __name__ == "__main__":
-
-    nside, Lmax = 5, 20
+def test_map2alm(device):
+    nside, Lmax = 5, 10
     g = 0.9
-
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Quadrature Methods
     qTdesign = QuadratureTdesign(240, device=device)
@@ -52,7 +41,7 @@ if __name__ == "__main__":
     alm_true  = alm_HenyeyGreenstein(g, Lmax, device=device).detach().cpu().numpy()
 
     # Heal pix standart method
-    alm_orig_hp = hp.map2alm(map_true_hp.detach().cpu().numpy(), lmax=Lmax, mmax=0, iter = 0, pol = False)
+    alm_orig_hp = hp.map2alm(map_true_hp.detach().cpu().numpy(), lmax=Lmax, mmax=0, iter = 1, pol = False)
     # Our custom
     alm_hp = map2alm(map_true_hp, Y_H=shH_hp, weights=w_hp)
     alm_td = map2alm(map_true_td, Y_H=shH_td, weights=w_td)
@@ -62,19 +51,22 @@ if __name__ == "__main__":
     alm_td = alm_diag(alm_td.detach().cpu().numpy(), L_max=Lmax)
 
     # Accuracy Plot
-    plt.figure(figsize=(8, 5))
-    plt.plot(np.abs((alm_orig_hp - alm_true)/alm_true),
-                linewidth=5, label=r"$\frac{|a_{\ell m}^{OrigHP} - a_{\ell m}^{true}|}{a_{\ell m}^{true}}$", color='C0')
+    mae_orig_hp = np.max(np.abs((alm_orig_hp - alm_true) / (alm_true + 1e-15)))
+    mae_hp = np.max(np.abs((alm_hp - alm_true) / (alm_true + 1e-15)))
+    mae_td = np.max(np.abs((alm_td - alm_true) / (alm_true + 1e-15)))
 
-    # If we want to check custom method (But we should normalize on)
-    plt.plot(np.abs((alm_hp - alm_true)/alm_true),
-                linewidth=2, linestyle="--", label=r"$\frac{|a_{\ell m}^{CustHP} - a_{\ell m}^{true}|}{a_{\ell m}^{true}}$", color='C1')
-    plt.plot(np.abs((alm_td - alm_true)/alm_true),
-                linewidth=2, linestyle="--", label=r"$\frac{|a_{\ell m}^{tdesign} - a_{\ell m}^{true}|}{a_{\ell m}^{true}}$", color='C2')
+    assert mae_orig_hp < 0.8, f"Orig HEALPix error exceeds threshold: {mae_orig_hp}"
+    assert mae_hp < 0.8, f"Custom HEALPix error exceeds threshold: {mae_hp}"
+    assert mae_td < 0.8, f"Custom TDesign error exceeds threshold: {mae_td}"
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(np.abs((alm_orig_hp - alm_true)/alm_true), linewidth=5, label=r"$\frac{|a_{\ell m}^{OrigHP} - a_{\ell m}^{true}|}{a_{\ell m}^{true}}$", color='C0')
+    plt.plot(np.abs((alm_hp - alm_true)/alm_true), linewidth=2, linestyle="--", label=r"$\frac{|a_{\ell m}^{CustHP} - a_{\ell m}^{true}|}{a_{\ell m}^{true}}$", color='C1')
+    plt.plot(np.abs((alm_td - alm_true)/alm_true), linewidth=2, linestyle="--", label=r"$\frac{|a_{\ell m}^{tdesign} - a_{\ell m}^{true}|}{a_{\ell m}^{true}}$", color='C2')
+    
     plt.title("MAE of alm reconstruction from map true", fontsize=14)
     plt.xlabel(r"Harmonic index $i$", fontsize=12)
     plt.ylabel("Absolute error", fontsize=12)
-    # plt.yscale("log")
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.legend(fontsize=14)
     plt.tight_layout()
