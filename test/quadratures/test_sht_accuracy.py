@@ -6,7 +6,6 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Get the parent directory of the current directory
 ROOT_DIR = os.path.abspath(os.path.join(ROOT_DIR, '..', '..'))
 # print(ROOT_DIR)
-sys.path.insert(0, ROOT_DIR)
 #===============================#
 
 from tqdm import tqdm
