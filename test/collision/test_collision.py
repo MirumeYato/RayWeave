@@ -45,7 +45,7 @@ class CollisionPhysicsObserver(Observer):
         self.initial_field = initial_state.field.clone()
         
     def on_step_end(self, step_idx: int, field: torch.Tensor, initial_flag=False) -> None:
-        current_time = (step_idx + 1) * self.dt
+        current_time = (step_idx + 1) * self.dt / 2.0 # Collision step is half-step, so we check at the end of each collision step
         
         # Exact mathematical solution check
         theory_field = self.get_analytical_solution(current_time)

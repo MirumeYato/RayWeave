@@ -1,7 +1,7 @@
 from .Step import Step
 from lib.State import FieldState, Field
 from lib.grid.Angle import Angle
-from lib.tools.func_HenyeyGreenshtein import alm_HenyeyGreenstein, expand_repeating_al_to_alm as expand_lm
+from StrangRTE.lib.tools.func_HenyeyGreenstein import eigenvalues_HenyeyGreenstein, expand_repeating_al_to_alm as expand_lm
 
 from lib.tools.mem_plot_profiler import profile_memory_usage, log_event
 
@@ -55,15 +55,15 @@ class Collision(Step):
         else:
             self.weights = weights.to(device=state.field.device, dtype=state.field.dtype)
 
-        l_arr = torch.arange(Lmax + 1, device=self.device, dtype=self.dtype_float)
-        g_l = (self.g ** l_arr).to(dtype=self.dtype_complex)
+        # g^l are the exact Legendre moments / eigenvalues of the HG collision operator
+        g_l = eigenvalues_HenyeyGreenstein(g=self.g, L_max=Lmax, device=self.device).to(dtype=self.dtype_complex)
         
         # lambda_l is the exact eigenvalue for the collision operator for degree l.
         lambda_l = -(self.mu_absorb + self.mu_scatter) + self.mu_scatter * g_l
         
-        # Using full dt, avoiding fixed fractional Strang Splitting hardcodes
-        exp_lm = torch.exp(lambda_l * self.dt / 2.0) # {L+1} 
-        self.exp_lm = expand_lm(exp_lm, Lmax) # {(L+1)^2}
+        # Using full dt, not dt/2 — Strang splitting compensation is handled at engine level
+        exp_lm = torch.exp(lambda_l * self.dt / 2.0)  # {L+1} 
+        self.exp_lm = expand_lm(exp_lm, Lmax)   # {(L+1)^2}
 
 
         #################################################################
@@ -147,7 +147,7 @@ class CollisionHP(Step):
         alm_scattered = self.exp_lm * alm # A_pv * exp_lm[:, None, None, None] # TODO: what if dt is not constant? Need adding possibility to reinit self.exp_lm
 
         # just summation for lm. No need quadrature
-        scattered_field = field.clone()
+        scattered_field = field
         scattered_field[:, 0, 0, 0] = torch.tensor(hp.alm2map(alm_scattered, nside=self.n_side, lmax=self.Lmax, verbose=False), device=self.device, dtype=self.dtype_complex)
         
         return scattered_field

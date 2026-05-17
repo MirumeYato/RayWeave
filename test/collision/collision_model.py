@@ -16,7 +16,7 @@ from lib.Steps.Collision import Collision
 # from lib.Steps.dummy import DummyPropagate
 
 from lib.grid.Angle import Angle
-from lib.tools.func_HenyeyGreenshtein import alm_HenyeyGreenstein, expand_repeating_al_to_alm as expand_lm
+from lib.tools.func_HenyeyGreenstein import eigenvalues_HenyeyGreenstein, expand_repeating_al_to_alm as expand_lm
 
 # Function-like run
 def make_collision_model(
@@ -47,11 +47,10 @@ def get_analytical_solution(
         device) -> torch.Tensor:
     J = initial_field.sum().abs().detach().cpu().numpy() # intensity in point like delta t source.
 
-    l_arr = torch.arange(Lmax + 1, device=device, dtype=torch.float64)
-    g_l = (g ** l_arr).to(dtype=initial_field.dtype) # {L+1}
-    lambda_l = speed * (-(mu_absorb + mu_scatter) + mu_scatter * g_l) # {L+1}
+    g_l = eigenvalues_HenyeyGreenstein(g=g, L_max=Lmax, device=device).to(dtype=initial_field.dtype)  # g^l, shape {L+1}
+    lambda_l = speed * (-(mu_absorb + mu_scatter) + mu_scatter * g_l)  # exact eigenvalue, shape {L+1}
     exp_lm = torch.exp(lambda_l * np.complex128(dt / 2.0)) # {L+1}
-    exp_lm = expand_lm(exp_lm, Lmax) # {(L+1)^2}
+    exp_lm = expand_lm(exp_lm, Lmax)  # {(L+1)^2}
 
     shperical_harmonics, shperical_harmonics_H = Quadrature.get_spherical_harmonics(Lmax=Lmax, dtype=initial_field.dtype)
 

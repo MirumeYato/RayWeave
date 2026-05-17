@@ -32,8 +32,22 @@ def map_HenyeyGreenstein(g: float, theta: Tensor) -> Tensor:
 
 def alm_HenyeyGreenstein(g: float, L_max: int, device = "cpu") -> Tensor:
     """
-    Exact expansion coefficients a_lm = 0 for m≠0 and
-    a_l0 = sqrt((2l+1)/(4π)) * g^l   (normalized real spherical harmonics).
+    **SH expansion coefficients** of the Henyey-Greenstein phase function.
+
+    The HG phase function expanded in real spherical harmonics gives:
+
+        p(cos θ) = Σ_l (2l+1)/(4π) * g^l * P_l(cos θ)
+
+    In the Y_lm basis (with standard orthonormal normalisation) the only
+    non-zero coefficients are m=0, and they equal:
+
+        a_l0 = sqrt((2l+1)/(4π)) * g^l
+
+    **WARNING – these are NOT the eigenvalues of the collision operator.**
+    The eigenvalues of the isotropic collision/scattering operator are
+    simply ``g**l`` (see ``eigenvalues_HenyeyGreenstein``).  Using this
+    function where eigenvalues are expected will silently introduce a
+    spurious ``sqrt((2l+1)/(4π))`` factor that corrupts the physics.
 
     Parameters
     ----------
@@ -41,15 +55,52 @@ def alm_HenyeyGreenstein(g: float, L_max: int, device = "cpu") -> Tensor:
         Asymmetry parameter (|g| < 1).
     L_max : int
         Maximum degree l (inclusive).
+    device : str or torch.device
 
     Returns
     -------
     Tensor
-        1D tensor of shape (L_max+1,) containing a_00, a_10, ..., a_{L_max}0
+        Shape ``(L_max+1,)`` — the m=0 SH coefficients a_00, a_10, …, a_{L_max,0}.
     """
     l = torch.arange(L_max + 1, device = device, dtype=torch.float64)        # degree l = 0,1,...,L_max
     alm = g ** l / torch.sqrt(4 * torch.pi / (2 * l + 1))
     return alm.to(device, torch.float64)
+
+
+def eigenvalues_HenyeyGreenstein(g: float, L_max: int, device = "cpu") -> Tensor:
+    """
+    **Collision-operator eigenvalues** for the Henyey-Greenstein phase function.
+
+    For the isotropic scattering operator
+
+        (Cf)(Ω) = μ_s ∫ p(Ω·Ω') f(Ω') dΩ'
+
+    the spherical-harmonic basis diagonalises it with eigenvalues
+
+        λ_l = -μ_a - μ_s + μ_s * g^l
+
+    This function returns just the ``g^l`` part (the HG Legendre moments).
+    Combine with μ_a and μ_s in the caller.
+
+    **Do not confuse with** ``alm_HenyeyGreenstein``, which returns the
+    properly normalised SH expansion coefficients of p(cos θ) — they
+    carry an extra ``sqrt((2l+1)/(4π))`` factor.
+
+    Parameters
+    ----------
+    g : float
+        Asymmetry parameter (|g| < 1).
+    L_max : int
+        Maximum degree l (inclusive).
+    device : str or torch.device
+
+    Returns
+    -------
+    Tensor
+        Shape ``(L_max+1,)`` — values g^0, g^1, …, g^{L_max}.
+    """
+    l = torch.arange(L_max + 1, device=device, dtype=torch.float64)
+    return (g ** l).to(device, torch.float64)
 
 ######################
 
