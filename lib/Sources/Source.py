@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from lib.grid.Angle import Angle
-from lib.tools.func_HenyeyGreenshtein import map_HenyeyGreenstein
+from lib.tools.func_HenyeyGreenstein import map_HenyeyGreenstein
 
 # from lib.data import ParticleState
 

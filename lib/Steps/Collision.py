@@ -1,7 +1,7 @@
 from .Step import Step
 from lib.State import FieldState, Field
 from lib.grid.Angle import Angle
-from StrangRTE.lib.tools.func_HenyeyGreenstein import eigenvalues_HenyeyGreenstein, expand_repeating_al_to_alm as expand_lm
+from lib.tools.func_HenyeyGreenstein import eigenvalues_HenyeyGreenstein, expand_repeating_al_to_alm as expand_lm
 
 from lib.tools.mem_plot_profiler import profile_memory_usage, log_event
 
