@@ -1,17 +1,5 @@
-import os
-import sys
 import pytest
 import torch
-
-# Path settings
-import os, sys
-#===============================#
-# Get the directory where the script is located
-PATH = os.path.dirname(os.path.abspath(__file__))
-# Get the parent directory of the current directory
-PATH = os.path.abspath(os.path.join(PATH, '..', '..'))
-sys.path.insert(0, PATH)
-#===============================#
 
 # =============================== #
 # Project Imports
@@ -90,7 +78,7 @@ def test_collision_model_accuracy(setup_environment, g_fin, mu_a, mu_s, dt):
     # 2. Run Numerical Solution
     propagator = make_collision_model(
         mu_a, mu_s, g_fin, state.dt, 
-        env["n_time_steps"], Angle, point_r0, device=device
+        env["n_time_steps"], Angle, point_r0, device=device, verbose=0
     )
     
     # We use torch.no_grad to save memory during testing

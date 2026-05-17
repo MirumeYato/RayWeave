@@ -22,12 +22,12 @@ from lib.tools.func_HenyeyGreenshtein import alm_HenyeyGreenstein, expand_repeat
 def make_collision_model(
         mu_a: float, mu_s: float, g: float, dt: float, 
         n_steps: int, Quadrature: Angle, c:int, 
-        device, obs_type = None, vebrose=0) -> StrangEngine:
+        device, obs_type = None, verbose=0) -> StrangEngine:
     """
     Simpliest propogater pipeline example. Do nothing, just pushes same FieldState further
     """
     steps: List[Step] = [
-        Collision(g, Quadrature, mu_a, mu_s, device=device, vebrose=vebrose)
+        Collision(g, Quadrature, mu_a, mu_s, device=device, verbose=verbose)
     ]
     # Each observer impacts on calculation time. Make every parameter big as possible
     if obs_type is None: observers = [] 
@@ -37,7 +37,7 @@ def make_collision_model(
         PlotMollviewInPoint([c,c,c], Quadrature, every=n_steps//10), 
         EnergyPlotter(n_steps, every=n_steps//100)]
     return StrangEngine(steps, n_steps, dt, observers,
-                    device=device, compile_fused=False, use_cuda_graph=False)
+                    device=device)
 
 def get_analytical_solution(
         initial_field: torch.Tensor,
