@@ -5,7 +5,6 @@ import os, sys
 PATH = os.path.dirname(os.path.abspath(__file__))
 # Get the parent directory of the current directory
 PATH = os.path.abspath(os.path.join(PATH, '..', '..'))
-sys.path.insert(0, PATH)
 #===============================#
 
 import pytest

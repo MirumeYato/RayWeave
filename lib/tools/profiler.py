@@ -5,6 +5,28 @@ import functools
 import gc
 from typing import Optional
 
+#===================================
+# Simple calculation time profiler
+#===================================
+
+def report_timing(func):
+    if hasattr(func, '__report_timing'):
+        return func
+    @functools.wraps(func)
+    def func_wrapper(*args, **kwargs):
+        tic = time()
+        result = func(*args, **kwargs)
+        toc = time()
+        dt = toc - tic
+        print(f'INFO: {func.__name__} (...)'.ljust(40)+f'{dt:6.3f} s'.rjust(30))
+        return result
+    func_wrapper.__report_timing=True
+    return func_wrapper
+
+#====================================================
+# Dummy memory profiler with flags for detailed debbugging
+#====================================================
+
 def _find_cuda_device_in_args(args, kwargs) -> Optional[int]:
     """
     Try to find a CUDA device index from any Tensor/Module/torch.device in args/kwargs.
