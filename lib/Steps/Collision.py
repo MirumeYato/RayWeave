@@ -1,5 +1,5 @@
 from .Step import Step
-from lib.State import FieldState
+from lib.State import FieldState, Field
 from lib.grid.Angle import Angle
 from lib.tools.func_HenyeyGreenshtein import alm_HenyeyGreenstein, expand_repeating_al_to_alm as expand_lm
 
@@ -16,25 +16,23 @@ class Collision(Step):
     def __init__(self, anisotropy_coef: float, Quadrature: Angle,
                  mu_absorb = 0., mu_scatter = 0., speed = 1.,
                  dtype_float = torch.float64, dtype_complex = torch.complex128,
-                 device = "cpu", vebrose = 0):
+                 device = "cpu", verbose = 0):        
+        super().__init__(device, verbose)
+
         # Grid for interpolation
-        self.shifted_grid = None
-        self.vebrose = vebrose
-        self.device = device
         self.dtype_float = dtype_float 
         self.dtype_complex = dtype_complex
 
         self.mu_absorb = np.float64(mu_absorb)      # Absorbtion length
         self.mu_scatter = np.float64(mu_scatter)    # Scattering length
-        self.speed = np.float64(speed)    # Speed of light
+        # self.speed = np.float64(speed)              # Speed of light
         self.g = np.float64(anisotropy_coef)    # Anisotropy coefitient of Henyey-Greenstein function
 
-        self.Quadrature:Angle = Quadrature
+        self.Quadrature:Angle = Quadrature # Class for producing angular operation like integration.
 
-    # @profile_memory_usage(interval=0.00001)
     def setup(self, state: FieldState, **kwargs) -> None:
         """Allocate reusable buffers or precompute constants (on correct device)."""
-        # log_event("start", **kwargs)
+        self.setup_dt(state)
         Lmax = state.meta["L_max"]
 
         # Check dimentions
@@ -42,13 +40,10 @@ class Collision(Step):
         spatial_dim = len(state.field.shape[1:])  # number of space dimensions (1D, 2D, 3D ...)
         spatial_size = state.field.shape[-1]                 # bin number for space coordinates
 
-        # if self.vebrose: log_event("before SH", **kwargs)
-
         # Pre-compute spherical harmonisc. shape {Quadrature.num_bins, (L+1)**2}
         self.shperical_harmonics, self.shperical_harmonics_H = self.Quadrature.get_spherical_harmonics(Lmax=Lmax, dtype=self.dtype_complex)
-        # if self.vebrose: 
-        #     print(f"L_max is {Lmax}, num of angle directions {self.Quadrature.num_bins}\nShperical harmonics shae is: {self.shperical_harmonics.shape}")
-        #     log_event("SH precalculated", **kwargs)
+        if self.verbose: 
+            print(f"[INFO]: L_max is {Lmax}, num of angle directions {self.Quadrature.num_bins}\\nShperical harmonics shape is: {self.shperical_harmonics.shape}")
         
         # Define weights for numerical integration via quadrature
         weights = self.Quadrature.get_weights()
@@ -58,14 +53,16 @@ class Collision(Step):
             self.weights = torch.full_like(state.field, np.float64(weights), 
                     device=state.field.device, dtype=state.field.dtype) # If solution is Chebishev-like 
         else:
-            self.weights = weights.to(device=state.field.device, dtype=state.field.dtype) 
+            self.weights = weights.to(device=state.field.device, dtype=state.field.dtype)
 
-        # if self.vebrose: log_event("checked weights", **kwargs)
-
-        # Pre-calculate solution for Henyey-Greenstein's coefficients evolution.
-        g_l = alm_HenyeyGreenstein(g=self.g, L_max=Lmax, device=self.device).to(dtype=self.dtype_complex) # {L+1}
-        lambda_l = self.speed * (-(self.mu_absorb + self.mu_scatter) + self.mu_scatter * g_l) # {L+1}
-        exp_lm = torch.exp(lambda_l * np.complex128(state.dt / 2.0)) # {L+1}
+        l_arr = torch.arange(Lmax + 1, device=self.device, dtype=self.dtype_float)
+        g_l = (self.g ** l_arr).to(dtype=self.dtype_complex)
+        
+        # lambda_l is the exact eigenvalue for the collision operator for degree l.
+        lambda_l = -(self.mu_absorb + self.mu_scatter) + self.mu_scatter * g_l
+        
+        # Using full dt, avoiding fixed fractional Strang Splitting hardcodes
+        exp_lm = torch.exp(lambda_l * self.dt) # {L+1} 
         self.exp_lm = expand_lm(exp_lm, Lmax) # {(L+1)^2}
 
 
@@ -74,66 +71,88 @@ class Collision(Step):
         # Originally alm_star = exp_lm * alm + c*(exp_lm-1)/lambda_l * blm
         #       P.S. For delta(t)-like sources easier to init state.field = source_map, so blm=0 in any (r,t,s)
         #            So alm_star = exp_lm * alm (calculation is simplier)
-        # TODO: what if dt is not constant? Need adding possibility to 
-        #       precalculate self.exp_lm for all other predefined dt.
-        #
-        #       I think that here is no real need to change dt in real time. 
-        #       If dt was choosen bad, I think better to solve it adding some 
-        #       logger of error or initially try to make prediction od error and print it out
-        #       (look more same todo by "dt!=const")
 
-        if self.vebrose: 
+        if self.verbose: 
             print(f"""
     [DEBUG]: Setup stage
         Sucsesfully spherical harmonisc was pre-computed with shape: {self.shperical_harmonics.shape}.
         Sucsesfully exp(lambda_l dt) was pre-computed with shape: {self.exp_lm.shape}.
         Angular dimention is {self.Quadrature.num_bins}, Spatial dimention is {spatial_size}\n""")
-            # log_event("precalculated exp(lambda dt)", **kwargs)
 
-    # @profile_memory_usage(interval=0.00001)
-    def forward(self, state: FieldState, **kwargs) -> FieldState:
-    #     if self.vebrose: 
-    #         print(f"""
-    # [DEBUG]: cycle stage
-    #     Field shape: {state.field.shape}.
-    #     Weights shape: {self.weights.shape}.\n""")
-            # log_event("start", **kwargs)
-        
+    def forward(self, field: Field, **kwargs) -> Field:
         # A_pv = sum_q  w * I_qv * conj(Y_qp)
         # einsum shapes: (qv) , (qp) -> (pv)
-        alm = torch.einsum('qijk,qp->pijk', state.field * self.weights, self.shperical_harmonics_H) # (P, V), complex
+        alm = torch.einsum('qijk,qp->pijk', field * self.weights, self.shperical_harmonics_H) # (P, V), complex
         
-        # if self.vebrose: 
-        #     print(f"alm shape {alm.shape}")
-        #     log_event("alm calculated", **kwargs)
-
         # Spectral filtering: multiply by f_lm per (l,m)
         alm_scattered = torch.einsum('pijk,p->pijk', alm, self.exp_lm)  # A_pv * exp_lm[:, None, None, None] # TODO: what if dt is not constant? Need adding possibility to reinit self.exp_lm
-
-        # if self.vebrose: 
-        #     print(f"alm shape {alm_scattered.shape}")
-        #     log_event("alm scattered", **kwargs)
 
         # just summation for lm. No need quadrature
         scattered_field = torch.einsum('pijk,qp->qijk', alm_scattered, self.shperical_harmonics) # [Q,N,N,N]
         
-        # if self.vebrose: log_event("end", **kwargs)
-
         # scattered_field.real.relu_() # make zero of negative real items
         # scattered_field.imag.zero_()
         
-        return FieldState(scattered_field, state.dt, state.meta)
-    
-        # Lines below does not work with torch.compile . Use them only when compile_fused=False, use_cuda_graph=False
-        #     if self.vebrose: print(f""" 
-        # [DEBUG]: Setup stage
-        #     Field sucsesfully scattered in time dt={state.dt}.
-        #     Initial shape: {state.field.shape}.
-        #     Result shape:  {scattered_field.shape}.\n""")
+        return scattered_field
 
     def teardown(self):
         del self.exp_lm
         del self.shperical_harmonics
         del self.shperical_harmonics_H        
+        gc.collect()
+
+
+import healpy as hp
+class CollisionHP(Step):
+    """
+    Henyey-Greenstein scattering without moving. implemented on HealPix.
+    """
+    def __init__(self, anisotropy_coef: float, Quadrature: Angle,
+                 mu_absorb = 0., mu_scatter = 0., speed = 1.,
+                 dtype_float = torch.float64, dtype_complex = torch.complex128,
+                 device = "cpu", verbose = 0):        
+        super().__init__(device, verbose)
+
+        # Grid for interpolation
+        self.dtype_float = dtype_float 
+        self.dtype_complex = dtype_complex
+
+        self.mu_absorb = np.float64(mu_absorb)      # Absorbtion length
+        self.mu_scatter = np.float64(mu_scatter)    # Scattering length
+        # self.speed = np.float64(speed)              # Speed of light
+        self.g = np.float64(anisotropy_coef)    # Anisotropy coefitient of Henyey-Greenstein function
+        self.n_side = Quadrature.n_side
+
+    def setup(self, state: FieldState, **kwargs) -> None:
+        """Allocate reusable buffers or precompute constants (on correct device)."""
+        self.setup_dt(state)
+        self.Lmax = state.meta["L_max"]
+        l_arr, m_arr = hp.Alm.getlm(self.Lmax)
+
+        # Check dimentions
+        n_size = state.field.shape[0]             # angular
+        spatial_dim = len(state.field.shape[1:])  # number of space dimensions (1D, 2D, 3D ...)
+        spatial_size = state.field.shape[-1]                 # bin number for space coordinates
+        
+
+        # Pre-calculate solution for Henyey-Greenstein's coefficients evolution.
+        lambda_l = -(self.mu_absorb + self.mu_scatter) + self.mu_scatter * (self.g ** l_arr)
+        self.exp_lm = np.exp(lambda_l * self.dt)
+
+    def forward(self, field: Field, **kwargs) -> Field:
+        # A_pv = sum_q  w * I_qv * conj(Y_qp)
+        alm = hp.map2alm(field.detach().cpu().numpy()[:, 0, 0, 0], lmax=self.Lmax, iter=1, pol=False)
+        
+        # Spectral filtering: multiply by f_lm per (l,m)
+        alm_scattered = self.exp_lm * alm # A_pv * exp_lm[:, None, None, None] # TODO: what if dt is not constant? Need adding possibility to reinit self.exp_lm
+
+        # just summation for lm. No need quadrature
+        scattered_field = field
+        scattered_field[:, 0, 0, 0] = torch.tensor(hp.alm2map(alm_scattered, nside=self.n_side, lmax=self.Lmax, verbose=False), device=self.device, dtype=self.dtype_complex)
+        
+        return scattered_field
+
+    def teardown(self):
+        del self.exp_lm     
         gc.collect()
         
