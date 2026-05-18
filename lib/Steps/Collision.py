@@ -2,6 +2,7 @@ from .Step import Step
 from lib.State import FieldState, Field
 from lib.grid.Angle import Angle
 from lib.tools.func_HenyeyGreenstein import eigenvalues_HenyeyGreenstein, expand_repeating_al_to_alm as expand_lm
+from lib.tools.func_Lanczos import get_lanczos_filter_custom
 
 from lib.tools.mem_plot_profiler import profile_memory_usage, log_event
 
@@ -64,7 +65,7 @@ class Collision(Step):
         # Using full dt, not dt/2 — Strang splitting compensation is handled at engine level
         exp_lm = torch.exp(lambda_l * self.dt / 2.0)  # {L+1} 
         self.exp_lm = expand_lm(exp_lm, Lmax)   # {(L+1)^2}
-
+        self.exp_lm *= get_lanczos_filter_custom(Lmax).to(device=self.device, dtype=torch.complex128)
 
         #################################################################
         # TODO: extend for using source (blm = map2alm(source_map)) also

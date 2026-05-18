@@ -1,3 +1,4 @@
 from .profiler import profile_time_and_memory as performance
 from .func_HenyeyGreenstein import map_HenyeyGreenstein, alm_HenyeyGreenstein, eigenvalues_HenyeyGreenstein
 from .mem_plot_profiler import profile_memory_usage
+from .func_Lanczos import get_lanczos_filter_hp, get_lanczos_filter_custom
